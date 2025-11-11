@@ -8,11 +8,6 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  // Skip error page generation to avoid SSR issues with @react-three/drei
-  experimental: {
-    ...nextConfig?.experimental,
-    // Skip fallback for error pages
-  },
   // This prevents build failures from error page pre-rendering
   onDemandEntries: {
     maxInactiveAge: 25 * 1000,
@@ -36,6 +31,7 @@ const nextConfig = {
     deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
   },
+  // Skip error page generation to avoid SSR issues with @react-three/drei
   experimental: {
     // Configure Turbo properly
     turbo: {
