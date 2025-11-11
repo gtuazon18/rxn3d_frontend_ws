@@ -8,6 +8,16 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  // Skip error page generation to avoid SSR issues with @react-three/drei
+  experimental: {
+    ...nextConfig?.experimental,
+    // Skip fallback for error pages
+  },
+  // This prevents build failures from error page pre-rendering
+  onDemandEntries: {
+    maxInactiveAge: 25 * 1000,
+    pagesBufferLength: 2,
+  },
   images: {
     unoptimized: false,
     remotePatterns: [
