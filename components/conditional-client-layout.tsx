@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import { Suspense } from "react"
 import { usePathname } from "next/navigation"
 import dynamic from "next/dynamic"
 
@@ -13,10 +14,9 @@ const ClientLayout = dynamic(() => import("@/app/client-layout").then(mod => ({ 
 const PUBLIC_ROUTES = ["/login", "/forgot-password", "/reset-password", "/setup-account", "/onboarding"]
 
 /**
- * Conditionally renders ClientLayout based on route.
- * Skips ClientLayout (and framer-motion) on public routes to reduce bundle size.
+ * Internal component that uses usePathname
  */
-export function ConditionalClientLayout({ children }: { children: React.ReactNode }) {
+function ConditionalClientLayoutInternal({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const isPublicRoute = pathname ? PUBLIC_ROUTES.some((route) => pathname.startsWith(route)) : false
 
@@ -27,5 +27,17 @@ export function ConditionalClientLayout({ children }: { children: React.ReactNod
 
   // For authenticated routes, use ClientLayout with animations
   return <ClientLayout>{children}</ClientLayout>
+}
+
+/**
+ * Conditionally renders ClientLayout based on route.
+ * Skips ClientLayout (and framer-motion) on public routes to reduce bundle size.
+ */
+export function ConditionalClientLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={<>{children}</>}>
+      <ConditionalClientLayoutInternal>{children}</ConditionalClientLayoutInternal>
+    </Suspense>
+  )
 }
 

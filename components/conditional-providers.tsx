@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { Suspense } from "react"
 import { usePathname } from "next/navigation"
 import { InvitationProvider } from "@/contexts/invitation-context"
 import { LabAdminProvider } from "@/contexts/lab-admin-context"
@@ -23,18 +23,14 @@ const ModelPreloadProvider = React.lazy(() =>
 const PUBLIC_ROUTES = ["/login", "/forgot-password", "/reset-password", "/setup-account"]
 
 /**
- * Conditionally renders providers based on route.
- * This prevents loading heavy providers and making unnecessary API calls on public pages like login.
- * 
- * On public routes (login, forgot-password, etc.), we skip loading all the authenticated providers
- * which significantly reduces initial bundle size and network requests.
+ * Internal component that uses usePathname
  */
-export function ConditionalProviders({ children }: { children: React.ReactNode }) {
+function ConditionalProvidersInternal({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  
+
   // Check if current route is a public route
   const isPublicRoute = pathname ? PUBLIC_ROUTES.some((route) => pathname.startsWith(route)) : false
-  
+
   // For public routes, skip loading authenticated providers to reduce bundle size
   if (isPublicRoute) {
     return <>{children}</>
@@ -73,6 +69,21 @@ export function ConditionalProviders({ children }: { children: React.ReactNode }
         </RegistrationProvider>
       </LabAdminProvider>
     </InvitationProvider>
+  )
+}
+
+/**
+ * Conditionally renders providers based on route.
+ * This prevents loading heavy providers and making unnecessary API calls on public pages like login.
+ *
+ * On public routes (login, forgot-password, etc.), we skip loading all the authenticated providers
+ * which significantly reduces initial bundle size and network requests.
+ */
+export function ConditionalProviders({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={<>{children}</>}>
+      <ConditionalProvidersInternal>{children}</ConditionalProvidersInternal>
+    </Suspense>
   )
 }
 

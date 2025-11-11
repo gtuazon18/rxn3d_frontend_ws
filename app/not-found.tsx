@@ -3,11 +3,12 @@
 import Link from "next/link"
 import { Home } from "lucide-react"
 import { AuthHeader } from "@/components/auth-header"
-import { useRouter, useSearchParams } from "next/navigation"
-import { useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { Suspense, useEffect } from "react"
 import { useTranslation } from "react-i18next"
+import { useSearchParams } from "next/navigation"
 
-export default function NotFound() {
+function NotFoundContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { t } = useTranslation()
@@ -59,5 +60,13 @@ export default function NotFound() {
         <p>© {new Date().getFullYear()} Rxn3D. {t("All rights reserved.", "All rights reserved.")}</p>
       </footer>
     </div>
+  )
+}
+
+export default function NotFound() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <NotFoundContent />
+    </Suspense>
   )
 }

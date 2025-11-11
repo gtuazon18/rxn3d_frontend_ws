@@ -13,6 +13,9 @@ import { ContextErrorBoundary } from '@/components/context-error-boundary'
 import { PerformanceMonitor } from '@/components/performance-monitor'
 import '@/lib/fetch-interceptor' // Global fetch interceptor for 401 handling
 
+// Force all pages to be dynamic (client-rendered) to avoid SSR issues with i18n and navigation hooks
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
   title: "Rxn3D LMS",
   description: "RxN3D is a digital case management platform for dental labs and offices.",

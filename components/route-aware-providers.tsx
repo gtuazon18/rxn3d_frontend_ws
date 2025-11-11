@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import { Suspense } from "react"
 import { usePathname } from "next/navigation"
 import { MinimalProviders } from "./minimal-providers"
 import { Providers } from "./providers"
@@ -9,10 +10,9 @@ import { Providers } from "./providers"
 const PUBLIC_ROUTES = ["/login", "/forgot-password", "/reset-password", "/setup-account", "/onboarding"]
 
 /**
- * Route-aware provider wrapper that uses minimal providers for public routes
- * and full providers for authenticated routes
+ * Internal component that uses usePathname
  */
-export function RouteAwareProviders({ children }: { children: React.ReactNode }) {
+function RouteAwareProvidersInternal({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const isPublicRoute = pathname ? PUBLIC_ROUTES.some((route) => pathname.startsWith(route)) : false
 
@@ -21,5 +21,17 @@ export function RouteAwareProviders({ children }: { children: React.ReactNode })
   }
 
   return <Providers>{children}</Providers>
+}
+
+/**
+ * Route-aware provider wrapper that uses minimal providers for public routes
+ * and full providers for authenticated routes
+ */
+export function RouteAwareProviders({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={<Providers>{children}</Providers>}>
+      <RouteAwareProvidersInternal>{children}</RouteAwareProvidersInternal>
+    </Suspense>
+  )
 }
 
