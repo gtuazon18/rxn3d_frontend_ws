@@ -1,0 +1,489 @@
+"use client"
+
+import { useState, useEffect, useRef } from "react"
+import { X, ChevronDown } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useGrades, type GradePayload, type Grade } from "@/contexts/product-grades-context"
+import { DiscardChangesDialog } from "./discard-changes-dialog"
+
+interface CreateGradeModalProps {
+  isOpen: boolean
+  onClose: () => void
+  editingGrade?: Grade | null
+  editId?: number // Add editId prop for fetching grade details
+  onSave?: (data: Partial<GradePayload>) => Promise<void>
+  role?: string // Add role prop
+}
+
+export function CreateGradeModal({ isOpen, onClose, editingGrade, editId, onSave, role }: CreateGradeModalProps) {
+  const { createGrade, fetchGradeDetail, isLoading } = useGrades()
+
+  const defaultFormData = {
+    name: "",
+    code: "",
+    sequence: "",
+    status: "Active",
+  }
+
+  const [formData, setFormData] = useState(defaultFormData)
+  const [initialFormData, setInitialFormData] = useState(defaultFormData)
+  const [hasChanges, setHasChanges] = useState(false)
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false)
+  const [isDetailLoading, setIsDetailLoading] = useState(false)
+  const [fetchedGrade, setFetchedGrade] = useState<Grade | null>(null)
+
+  const [gradeDetailsEnabled, setGradeDetailsEnabled] = useState(true)
+  const [linkToProductsOpen, setLinkToProductsOpen] = useState(false)
+  const [linkToGroupOpen, setLinkToGroupOpen] = useState(false)
+
+  // Image state management
+  const [imageBase64, setImageBase64] = useState<string | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [showPreviewModal, setShowPreviewModal] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Determine if fields should be disabled
+  const currentGrade = editingGrade || fetchedGrade
+  const shouldDisableFields =
+    !!currentGrade &&
+    role === "lab_admin" &&
+    currentGrade.is_custom === "No"
+
+  // Fetch grade details when editing with editId
+  useEffect(() => {
+    if (isOpen && editId && !editingGrade) {
+      setIsDetailLoading(true)
+      fetchGradeDetail(editId).then((gradeDetail) => {
+        if (gradeDetail) {
+          setFetchedGrade(gradeDetail)
+          setFormData({
+            name: gradeDetail.name || "",
+            code: gradeDetail.code || "",
+            sequence: gradeDetail.sequence?.toString() || "",
+            status: gradeDetail.status || "Active",
+          })
+          setInitialFormData({
+            name: gradeDetail.name || "",
+            code: gradeDetail.code || "",
+            sequence: gradeDetail.sequence?.toString() || "",
+            status: gradeDetail.status || "Active",
+          })
+          // Set image if available
+          if (gradeDetail.image_url) {
+            setImageBase64(gradeDetail.image_url)
+            setImagePreview(gradeDetail.image_url)
+          } else {
+            setImageBase64(null)
+            setImagePreview(null)
+          }
+        }
+        setIsDetailLoading(false)
+      })
+    } else if (isOpen && editingGrade) {
+      // Use provided editingGrade if available
+      setFetchedGrade(editingGrade)
+      setFormData({
+        name: editingGrade.name || "",
+        code: editingGrade.code || "",
+        sequence: editingGrade.sequence?.toString() || "",
+        status: editingGrade.status || "Active",
+      })
+      setInitialFormData({
+        name: editingGrade.name || "",
+        code: editingGrade.code || "",
+        sequence: editingGrade.sequence?.toString() || "",
+        status: editingGrade.status || "Active",
+      })
+      // Set image if available
+      if (editingGrade.image_url) {
+        setImageBase64(editingGrade.image_url)
+        setImagePreview(editingGrade.image_url)
+      } else {
+        setImageBase64(null)
+        setImagePreview(null)
+      }
+    }
+  }, [isOpen, editId, editingGrade, fetchGradeDetail])
+
+  // Reset image when modal opens/closes
+  useEffect(() => {
+    if (!isOpen) {
+      setImageBase64(null)
+      setImagePreview(null)
+      setFetchedGrade(null)
+      setIsDetailLoading(false)
+    }
+  }, [isOpen])
+
+  useEffect(() => {
+    if (isOpen) {
+      if (!editId && !editingGrade) {
+        // Reset form for new grade creation
+        setFormData(defaultFormData)
+        setInitialFormData(defaultFormData)
+        setImageBase64(null)
+        setImagePreview(null)
+      }
+      setHasChanges(false)
+      setShowDiscardDialog(false)
+      setGradeDetailsEnabled(true)
+      setLinkToProductsOpen(false)
+      setLinkToGroupOpen(false)
+    }
+  }, [isOpen, editId, editingGrade])
+
+  useEffect(() => {
+    const changed = JSON.stringify(formData) !== JSON.stringify(initialFormData)
+    setHasChanges(changed)
+  }, [formData, initialFormData])
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }))
+  }
+
+  const handleAttemptClose = () => {
+    if (hasChanges) {
+      setShowDiscardDialog(true)
+    } else {
+      onClose()
+    }
+  }
+
+  const handleDiscard = () => {
+    setShowDiscardDialog(false)
+    onClose()
+  }
+
+  const handleKeepEditing = () => {
+    setShowDiscardDialog(false)
+  }
+
+  // Image handling functions
+  const handleImageClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string)
+        setImageBase64(reader.result as string)
+        setHasChanges(true)
+      }
+      reader.readAsDataURL(file)
+    } else {
+      setImagePreview(null)
+      setImageBase64(null)
+      setHasChanges(true)
+    }
+    // Clear the input value to allow re-selecting the same file
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
+    }
+  }
+
+  const handleRemoveImage = () => {
+    setImagePreview(null)
+    setImageBase64(null)
+    setHasChanges(true)
+    // Clear the file input value
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
+    }
+  }
+
+  const handlePreviewClick = () => {
+    if (imagePreview) setShowPreviewModal(true)
+  }
+
+  const handleSave = async () => {
+    if (!isFormValid) {
+      console.warn("Form is invalid. Cannot save.")
+      return
+    }
+    try {
+      const payload = {
+        name: formData.name,
+        code: formData.code,
+        sequence: Number.parseInt(formData.sequence),
+        status: formData.status as "Active" | "Inactive",
+        ...(imageBase64 && { image: imageBase64 }),
+      }
+
+      if ((editingGrade || fetchedGrade) && onSave) {
+        await onSave(payload)
+        setHasChanges(false)
+        onClose()
+      } else {
+        const success = await createGrade(payload)
+        if (success) {
+          setHasChanges(false)
+          onClose()
+        } else {
+          console.error("Failed to create grade. createGrade returned false.")
+        }
+      }
+    } catch (error) {
+      console.error("Error saving grade:", error)
+    }
+  }
+
+  const isFormValid =
+    formData.name.trim() !== "" &&
+    formData.code.trim() !== "" &&
+    formData.sequence.trim() !== "" &&
+    !isNaN(Number.parseInt(formData.sequence)) &&
+    formData.status.trim() !== ""
+
+  return (
+    <>
+      <Dialog
+        open={isOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleAttemptClose()
+          }
+        }}
+      >
+        <DialogContent className="p-0 gap-0 sm:max-w-[600px] overflow-hidden bg-white rounded-md">
+          <DialogHeader className="flex flex-row items-center justify-between px-6 py-4 border-b">
+            <DialogTitle className="text-xl font-bold">
+              {(editingGrade || fetchedGrade) ? "Edit Grade" : "Create Grade"}
+            </DialogTitle>
+            <Button variant="ghost" size="icon" onClick={handleAttemptClose} className="h-8 w-8">
+              <X className="h-5 w-5" />
+            </Button>
+          </DialogHeader>
+
+          <div className="overflow-y-auto max-h-[calc(80vh-65px)] p-6 space-y-6">
+            {isDetailLoading ? (
+              <div className="text-center py-8 text-gray-500">Loading grade details...</div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="font-medium">Grade Details</span>
+                <div className="rounded-full bg-gray-200 text-gray-600 w-5 h-5 flex items-center justify-center text-xs">
+                  ?
+                </div>
+              </div>
+              <Switch
+                checked={gradeDetailsEnabled}
+                onCheckedChange={setGradeDetailsEnabled}
+                className="data-[state=checked]:bg-[#1162a8]"
+                disabled={shouldDisableFields}
+              />
+            </div>
+            {gradeDetailsEnabled && (
+              <div className="space-y-4">
+                {/* Image Upload Section */}
+                <div className="flex flex-col lg:flex-row gap-6 lg:gap-8">
+                  <div className="flex flex-col items-center gap-3">
+                    <div
+                      className="flex items-center justify-center border-2 border-dashed border-gray-300 rounded-xl p-6 h-[140px] w-[140px] bg-gradient-to-br from-gray-50 to-gray-100 hover:border-gray-400 hover:bg-gradient-to-br hover:from-gray-100 hover:to-gray-200 transition-all duration-200 cursor-pointer group"
+                      onClick={handleImageClick}
+                    >
+                      {imagePreview ? (
+                        <img
+                          src={imagePreview}
+                          alt="Preview"
+                          className="object-cover h-full w-full rounded-xl"
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center text-gray-500 group-hover:text-gray-600">
+                          <i className="fas fa-cloud-upload-alt text-3xl mb-2"></i>
+                          <span className="text-xs font-medium">Upload Image</span>
+                        </div>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        ref={fileInputRef}
+                        style={{ display: "none" }}
+                        onChange={handleImageChange}
+                      />
+                    </div>
+                    <span className="text-xs text-gray-500 text-center max-w-[140px]">
+                      Click to upload grade image
+                    </span>
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        type="button"
+                        onClick={handlePreviewClick}
+                        disabled={!imagePreview}
+                      >
+                        Preview Image
+                      </Button>
+                      {imagePreview && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          type="button"
+                          onClick={handleRemoveImage}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          Remove
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Form fields on the right */}
+                  <div className="flex-1 space-y-4">
+                    <Input
+                      label="Grade Name"
+                      placeholder="Grade Name"
+                      value={formData.name}
+                      onChange={(e) => handleInputChange("name", e.target.value)}
+                      validationState={formData.name ? "valid" : "default"}
+                      required
+                      disabled={shouldDisableFields}
+                    />
+                    <Input
+                      label="Grade Code"
+                      placeholder="Grade Code"
+                      value={formData.code}
+                      onChange={(e) => handleInputChange("code", e.target.value)}
+                      validationState={formData.code ? "valid" : "default"}
+                      required
+                      disabled={shouldDisableFields}
+                    />
+                    <Input
+                      label="Sequence"
+                      placeholder="Sequence"
+                      type="number"
+                      value={formData.sequence}
+                      onChange={(e) => handleInputChange("sequence", e.target.value)}
+                      validationState={formData.sequence ? "valid" : "default"}
+                      required
+                      disabled={shouldDisableFields}
+                    />
+                    <Select
+                      value={formData.status}
+                      onValueChange={(value) => handleInputChange("status", value)}
+                      disabled={shouldDisableFields}
+                    >
+                      <SelectTrigger className="h-12">
+                        <SelectValue placeholder="Select Status *" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Active">Active</SelectItem>
+                        <SelectItem value="Inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            )}
+            <Collapsible open={linkToProductsOpen} onOpenChange={setLinkToProductsOpen}>
+              <CollapsibleTrigger className="flex items-center justify-between w-full border-t border-b py-4">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">Link to Products</span>
+                  <div className="rounded-full bg-gray-200 text-gray-600 w-5 h-5 flex items-center justify-center text-xs">
+                    ?
+                  </div>
+                </div>
+                <ChevronDown className={`h-5 w-5 transition-transform ${linkToProductsOpen ? "rotate-180" : ""}`} />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-4">
+                <p className="text-gray-600 mb-4">Select products to link this grade to.</p>
+              </CollapsibleContent>
+            </Collapsible>
+            <Collapsible open={linkToGroupOpen} onOpenChange={setLinkToGroupOpen}>
+              <CollapsibleTrigger className="flex items-center justify-between w-full border-t border-b py-4">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">Link to Existing Group</span>
+                  <div className="rounded-full bg-gray-200 text-gray-600 w-5 h-5 flex items-center justify-center text-xs">
+                    ?
+                  </div>
+                </div>
+                <ChevronDown className={`h-5 w-5 transition-transform ${linkToGroupOpen ? "rotate-180" : ""}`} />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-4">
+                <p className="text-gray-600 mb-4">Select groups to link this grade to.</p>
+              </CollapsibleContent>
+            </Collapsible>
+              </>
+            )}
+          </div>
+
+          <div className="px-6 py-4 flex justify-end gap-3 border-t">
+            <Button
+              variant="destructive"
+              onClick={handleAttemptClose}
+              className="bg-red-600 hover:bg-red-700"
+              disabled={shouldDisableFields}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={!isFormValid || isLoading || isDetailLoading || shouldDisableFields}
+              className="bg-[#1162a8] hover:bg-[#0d4d87] disabled:opacity-50"
+            >
+              {isLoading 
+                ? ((editingGrade || fetchedGrade) ? "Saving..." : "Creating...") 
+                : ((editingGrade || fetchedGrade) ? "Save Changes" : "Save Grade")}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {/* Image Preview Modal */}
+      <Dialog open={showPreviewModal} onOpenChange={setShowPreviewModal}>
+        <DialogContent
+          className="flex flex-col items-center justify-center p-0"
+          style={{
+            width: "100vw",
+            height: "100vh",
+            maxWidth: "100vw",
+            maxHeight: "100vh",
+            borderRadius: 0,
+            boxShadow: "none",
+          }}
+        >
+          <div className="relative w-full h-full flex items-center justify-center bg-black bg-opacity-90">
+            {imagePreview && (
+              <img
+                src={imagePreview}
+                alt="Grade Preview"
+                className="max-w-full max-h-full object-contain"
+              />
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowPreviewModal(false)}
+              className="absolute top-4 right-4 text-white hover:bg-white hover:bg-opacity-20"
+            >
+              <X className="h-6 w-6" />
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <DiscardChangesDialog
+        isOpen={showDiscardDialog}
+        type="grade"
+        onDiscard={handleDiscard}
+        onKeepEditing={handleKeepEditing}
+      />
+    </>
+  )
+}
