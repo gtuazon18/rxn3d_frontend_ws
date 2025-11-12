@@ -18,6 +18,13 @@ module.exports = {
     "./src/**/*.{ts,tsx}",
     "*.{js,ts,jsx,tsx,mdx}",
   ],
+  // Safelist common classes to ensure they're always included
+  safelist: [
+    'flex', 'items-center', 'justify-center', 'w-full', 'h-full',
+    'min-h-screen', 'bg-background', 'text-foreground',
+    'p-4', 'p-6', 'p-8', 'm-4', 'm-6', 'm-8',
+    'rounded-lg', 'border', 'shadow',
+  ],
   theme: {
     container: {
       center: true,
