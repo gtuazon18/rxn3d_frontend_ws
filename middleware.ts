@@ -40,15 +40,16 @@ export function middleware(request: NextRequest) {
 
   // Content Security Policy
   // Adjusted for Next.js, 3D rendering (Three.js), and Vercel deployment
+  // Allows HTTPS sources for styles, images, fonts, and connections to support CDN deployments
   const cspHeader = `
     default-src 'self';
-    script-src 'self' 'unsafe-eval' 'unsafe-inline' blob: https://vercel.live https://*.vercel.app https://*.vercel-insights.com;
-    style-src 'self' 'unsafe-inline' https://vercel.live https://*.vercel.app;
-    img-src 'self' blob: data: https: https://rxn3d-media-files.s3.us-west-2.amazonaws.com https://*.amazonaws.com https://*.vercel.app https://vercel.live;
-    font-src 'self' data: https://vercel.live https://*.vercel.app;
-    connect-src 'self' blob: https://api.rxn3d.com https://vercel.live https://*.vercel.app https://*.vercel-insights.com;
-    media-src 'self' blob: https://vercel.live https://*.vercel.app;
-    worker-src 'self' blob: https://vercel.live https://*.vercel.app;
+    script-src 'self' 'unsafe-eval' 'unsafe-inline' blob:;
+    style-src 'self' 'unsafe-inline' https:;
+    img-src 'self' blob: data: https:;
+    font-src 'self' data: https:;
+    connect-src 'self' blob: https:;
+    media-src 'self' blob: https:;
+    worker-src 'self' blob:;
     object-src 'none';
     frame-src 'none';
     base-uri 'self';
