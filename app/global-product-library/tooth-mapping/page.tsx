@@ -411,57 +411,6 @@ export default function ToothMappingPage() {
             </Table>
           </div>
         </div>
-
-        {/* Right side - Tooth Status Groups */}
-        <div className="w-1/3 min-w-[300px] bg-gray-50/30">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-gray-50/80 hover:bg-gray-50">
-                  <TableHead className="w-12 pl-6">
-                    <Checkbox className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]" />
-                  </TableHead>
-                  <TableHead>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <span>Tooth status group</span>
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Info className="ml-1 h-4 w-4 text-gray-400 cursor-pointer" />
-                            </TooltipTrigger>
-                            <TooltipContent className="max-w-xs p-4 bg-white border border-gray-200 shadow-lg rounded-md">
-                              <p className="text-sm text-gray-600">
-                                Tooth Status Groups help organize tooth statuses into logical sets for easier management and
-                                assignment to products.
-                              </p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                      <Button
-                        className="bg-[#1162a8] text-white text-xs px-2 py-1 h-7"
-                        onClick={handleOpenCreateToothStatusGroupModal}
-                      >
-                        Create Group
-                      </Button>
-                    </div>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {toothStatusGroups.map((group) => (
-                  <TableRow key={group.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
-                    <TableCell className="pl-6">
-                      <Checkbox className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]" />
-                    </TableCell>
-                    <TableCell className="font-medium text-gray-900">{group.name}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
       </div>
 
       <CreateToothStatusModal

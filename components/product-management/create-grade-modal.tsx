@@ -392,34 +392,6 @@ export function CreateGradeModal({ isOpen, onClose, editingGrade, editId, onSave
                 </div>
               </div>
             )}
-            <Collapsible open={linkToProductsOpen} onOpenChange={setLinkToProductsOpen}>
-              <CollapsibleTrigger className="flex items-center justify-between w-full border-t border-b py-4">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">Link to Products</span>
-                  <div className="rounded-full bg-gray-200 text-gray-600 w-5 h-5 flex items-center justify-center text-xs">
-                    ?
-                  </div>
-                </div>
-                <ChevronDown className={`h-5 w-5 transition-transform ${linkToProductsOpen ? "rotate-180" : ""}`} />
-              </CollapsibleTrigger>
-              <CollapsibleContent className="pt-4">
-                <p className="text-gray-600 mb-4">Select products to link this grade to.</p>
-              </CollapsibleContent>
-            </Collapsible>
-            <Collapsible open={linkToGroupOpen} onOpenChange={setLinkToGroupOpen}>
-              <CollapsibleTrigger className="flex items-center justify-between w-full border-t border-b py-4">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">Link to Existing Group</span>
-                  <div className="rounded-full bg-gray-200 text-gray-600 w-5 h-5 flex items-center justify-center text-xs">
-                    ?
-                  </div>
-                </div>
-                <ChevronDown className={`h-5 w-5 transition-transform ${linkToGroupOpen ? "rotate-180" : ""}`} />
-              </CollapsibleTrigger>
-              <CollapsibleContent className="pt-4">
-                <p className="text-gray-600 mb-4">Select groups to link this grade to.</p>
-              </CollapsibleContent>
-            </Collapsible>
               </>
             )}
           </div>

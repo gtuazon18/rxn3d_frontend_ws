@@ -435,40 +435,6 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
               </div>
             </div>
           )}
-
-          {/* Link to Products Section */}
-          <Collapsible open={linkToProductsOpen} onOpenChange={setLinkToProductsOpen}>
-            <CollapsibleTrigger className="flex items-center justify-between w-full border-t border-b py-3">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">Link to Products</span>
-                <div className="rounded-full bg-gray-200 text-gray-600 w-4 h-4 flex items-center justify-center text-xs">
-                  ?
-                </div>
-              </div>
-              <ChevronDown className={`h-4 w-4 transition-transform ${linkToProductsOpen ? "rotate-180" : ""}`} />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-3">
-              <p className="text-gray-600 text-sm mb-3">Select products to link this impression to.</p>
-              {/* Product linking content would go here */}
-            </CollapsibleContent>
-          </Collapsible>
-
-          {/* Link to Existing Group Section */}
-          <Collapsible open={linkToGroupOpen} onOpenChange={setLinkToGroupOpen}>
-            <CollapsibleTrigger className="flex items-center justify-between w-full border-t border-b py-3">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">Link to Existing Group</span>
-                <div className="rounded-full bg-gray-200 text-gray-600 w-4 h-4 flex items-center justify-center text-xs">
-                  ?
-                </div>
-              </div>
-              <ChevronDown className={`h-4 w-4 transition-transform ${linkToGroupOpen ? "rotate-180" : ""}`} />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-3">
-              <p className="text-gray-600 text-sm mb-3">Select groups to link this impression to.</p>
-              {/* Group linking content would go here */}
-            </CollapsibleContent>
-          </Collapsible>
         </div>
 
         {/* Footer with action buttons */}

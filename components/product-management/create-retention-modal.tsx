@@ -310,24 +310,6 @@ export function CreateRetentionModal({ isOpen, onClose, retention }: CreateReten
                 </div>
               )}
             </div>
-
-            {/* Link to Products */}
-            <div className="space-y-3">
-              <button
-                onClick={() => setLinkToProductsExpanded(!linkToProductsExpanded)}
-                className="flex items-center gap-2 text-base font-medium hover:text-gray-700"
-              >
-                {linkToProductsExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                Link to Products
-                <Info className="w-4 h-4 text-gray-400" />
-              </button>
-
-              {linkToProductsExpanded && (
-                <div className="ml-6 p-4 border border-gray-200 rounded-md">
-                  <p className="text-sm text-gray-600">Product linking options will be available here.</p>
-                </div>
-              )}
-            </div>
           </div>
 
           <div className="px-6 py-4 flex justify-end gap-3 border-t">

@@ -44,7 +44,7 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
     { id: "gum-shade", label: t("productLibrary.sideBar.GumShades", "Gum Shade"), href: `${routePrefix}/gum-shade` },
     { id: "material", label: t("productLibrary.sideBar.Materials", "Material"), href: `${routePrefix}/material` },
     { id: "retention", label: t("productLibrary.sideBar.Retention", "Retention"), href: `${routePrefix}/retention` },
-    { id: "visibility-manager", label: t("productLibrary.sideBar.Visibility", "Visibility"), href: `${routePrefix}/visibility-manager` },
+    // { id: "visibility-manager", label: t("productLibrary.sideBar.Visibility", "Visibility"), href: `${routePrefix}/visibility-manager` },
   ], [t, routePrefix])
 
   // Find the active tab only once

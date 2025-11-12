@@ -487,55 +487,6 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
                 </div>
               </CollapsibleContent>
             </Collapsible>
-
-            {/* Link to Products Section */}
-            <Collapsible open={linkToProductsOpen} onOpenChange={setLinkToProductsOpen}>
-              <CollapsibleTrigger className="flex items-center justify-between w-full border-t border-b py-4">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">Link to Products</span>
-                  <Info className="h-4 w-4 text-gray-400" />
-                </div>
-                <ChevronDown className={`h-5 w-5 transition-transform ${linkToProductsOpen ? "rotate-180" : ""}`} />
-              </CollapsibleTrigger>
-              <CollapsibleContent className="pt-4">
-                <p className="text-gray-600 mb-4">Select products to link this gum shade system to.</p>
-                {/* Product linking content would go here */}
-              </CollapsibleContent>
-            </Collapsible>
-
-            {/* Link to Existing Group Section */}
-            <Collapsible open={linkToExistingGroupOpen} onOpenChange={setLinkToExistingGroupOpen}>
-              <CollapsibleTrigger className="flex items-center justify-between w-full border-t border-b py-4">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">Link to Existing Group</span>
-                  <Info className="h-4 w-4 text-gray-400" />
-                </div>
-                <ChevronDown
-                  className={`h-5 w-5 transition-transform ${linkToExistingGroupOpen ? "rotate-180" : ""}`}
-                />
-              </CollapsibleTrigger>
-              <CollapsibleContent className="pt-4">
-                <p className="text-gray-600 mb-4">Select groups to link this gum shade system to.</p>
-                {/* Group linking content would go here */}
-              </CollapsibleContent>
-            </Collapsible>
-
-            {/* Visibility Management Section */}
-            <Collapsible open={visibilityManagementOpen} onOpenChange={setVisibilityManagementOpen}>
-              <CollapsibleTrigger className="flex items-center justify-between w-full border-t border-b py-4">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">Visibility Management</span>
-                  <Info className="h-4 w-4 text-gray-400" />
-                </div>
-                <ChevronDown
-                  className={`h-5 w-5 transition-transform ${visibilityManagementOpen ? "rotate-180" : ""}`}
-                />
-              </CollapsibleTrigger>
-              <CollapsibleContent className="pt-4">
-                <p className="text-gray-600 mb-4">Manage which labs can see this gum shade system.</p>
-                {/* Visibility management content would go here */}
-              </CollapsibleContent>
-            </Collapsible>
           </div>
 
           {/* Footer with action buttons */}

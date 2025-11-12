@@ -423,60 +423,6 @@ export default function GradesPage() {
           </div>
         </div>
 
-        {/* Right side - Grades Groups */}
-        <div className="w-1/3 min-w-[300px] bg-gray-50/30">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-[#f9f9f9]">
-                  <TableHead className="w-[40px]">
-                    <Checkbox className="checkbox-styled" />
-                  </TableHead>
-                  <TableHead>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        Grades Group{" "}
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Info className="ml-1 h-4 w-4 text-gray-400" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Organize grades into groups.</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                      <Button
-                        className="bg-[#1162a8] text-white text-xs px-2 py-1 h-7"
-                        onClick={() => setIsCreateGradeGroupModalOpen(true)}
-                      >
-                        Create Group
-                      </Button>
-                    </div>
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {mockGradeGroups.map((group) => (
-                  <TableRow key={group.id} className="bg-white hover:bg-[#f5f8fa]">
-                    <TableCell>
-                      <Checkbox className="checkbox-styled" />
-                    </TableCell>
-                    <TableCell>{group.name}</TableCell>
-                  </TableRow>
-                ))}
-                {mockGradeGroups.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={2} className="text-center py-10 text-gray-500">
-                      No stage groups yet.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
       </div>
 
       <CreateGradeModal

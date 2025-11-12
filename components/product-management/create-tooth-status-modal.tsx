@@ -341,36 +341,6 @@ export function CreateToothStatusModal({
                   </div>
                 </div>
               </div>
-
-              {/* Link to Products Section */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-medium">Link to Products</h3>
-                    <Info className="h-4 w-4 text-gray-400" />
-                  </div>
-                  <div className="text-gray-400">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-
-              {/* Link to Existing Group Section */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-medium">Link to Existing Group</h3>
-                    <Info className="h-4 w-4 text-gray-400" />
-                  </div>
-                  <div className="text-gray-400">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
             </div>
 
             {/* Footer */}
