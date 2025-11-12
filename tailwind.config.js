@@ -6,9 +6,9 @@
   - Merges all color, content, and theme customizations.
   - Adds chart and sidebar color groups.
   - Keeps both blue/gray palettes and new color groups.
-  - Uses CommonJS export for compatibility.
 */
 
+/** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: ["class"],
   content: [
