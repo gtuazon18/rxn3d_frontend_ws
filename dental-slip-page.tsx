@@ -2338,7 +2338,10 @@ export function DentalSlipPageContent({
   useEffect(() => {
     if (step === 4) {
       // Fetch all categories for restoration type selection
-      fetchAllCategories("en")
+      // Pass customer_id from localStorage if available
+      const customerId = typeof window !== "undefined" ? localStorage.getItem("customerId") : null
+      const customerIdNum = customerId ? Number(customerId) : undefined
+      fetchAllCategories("en", customerIdNum)
     }
   }, [step, fetchAllCategories])
 
@@ -3068,7 +3071,9 @@ export function DentalSlipPageContent({
                               }
                               setProductCategory(cat.name);
                               // Fetch subcategories for the selected category
-                              fetchSubcategoriesByCategory(cat.id, "en");
+                              const customerId = typeof window !== "undefined" ? localStorage.getItem("customerId") : null
+                              const customerIdNum = customerId ? Number(customerId) : undefined
+                              fetchSubcategoriesByCategory(cat.id, "en", customerIdNum);
                               setStep(5);
                             }}
                           >
@@ -3150,7 +3155,9 @@ export function DentalSlipPageContent({
                         onClick={() => {
                           const selectedCategory = allCategories.find(cat => cat.name === productCategory);
                           if (selectedCategory) {
-                            fetchSubcategoriesByCategory(selectedCategory.id, "en");
+                            const customerId = typeof window !== "undefined" ? localStorage.getItem("customerId") : null
+                            const customerIdNum = customerId ? Number(customerId) : undefined
+                            fetchSubcategoriesByCategory(selectedCategory.id, "en", customerIdNum);
                           }
                         }}
                         className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"

@@ -108,7 +108,7 @@ type ProductCategoryContextType = {
   subcategoriesByCategory: ProductCategory[]
   subcategoriesLoading: boolean
   subcategoriesError: string | null
-  fetchSubcategoriesByCategory: (categoryId: number, lang?: string) => Promise<void>
+  fetchSubcategoriesByCategory: (categoryId: number, lang?: string, customerId?: number) => Promise<void>
 }
 
 type ProductCategoryApi = {
@@ -567,7 +567,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
 
   // Fetch subcategories by category ID
   const fetchSubcategoriesByCategory = useCallback(
-    async (categoryId: number, lang = "en") => {
+    async (categoryId: number, lang = "en", passedCustomerId?: number) => {
       setSubcategoriesLoading(true)
       setSubcategoriesError(null)
       try {
@@ -577,9 +577,10 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
           category_id: categoryId.toString()
         })
         
-        // Add customer_id if user is lab admin
-        if (isLabAdmin && customerId) {
-          params.append("customer_id", customerId.toString())
+        // Add customer_id if provided, otherwise use context customerId for lab admin
+        const customerIdToUse = passedCustomerId || (isLabAdmin && customerId ? customerId : undefined)
+        if (customerIdToUse) {
+          params.append("customer_id", customerIdToUse.toString())
         }
 
         const response = await fetch(
