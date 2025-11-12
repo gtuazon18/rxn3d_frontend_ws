@@ -19,7 +19,26 @@ module.exports = {
     "./*.{js,ts,jsx,tsx,mdx}",
   ],
   // Safelist common classes to ensure they're always included
+  // Using pattern matching to catch all variants
   safelist: [
+    {
+      pattern: /^(flex|grid|block|inline|hidden|visible)/,
+    },
+    {
+      pattern: /^(items|justify|content|self|place)-(start|center|end|between|around|evenly|stretch)/,
+    },
+    {
+      pattern: /^(w|h|min-w|min-h|max-w|max-h)-(full|screen|auto|\d+)/,
+    },
+    {
+      pattern: /^(p|m|px|py|pt|pb|pl|pr|mx|my|mt|mb|ml|mr)-(\d+)/,
+    },
+    {
+      pattern: /^(bg|text|border)-(background|foreground|primary|secondary|muted|accent|destructive|border|input|ring)/,
+    },
+    {
+      pattern: /^(rounded|border|shadow)/,
+    },
     'flex', 'items-center', 'justify-center', 'w-full', 'h-full',
     'min-h-screen', 'bg-background', 'text-foreground',
     'p-4', 'p-6', 'p-8', 'm-4', 'm-6', 'm-8',
