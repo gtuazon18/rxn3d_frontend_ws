@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAddOns, type AddOn } from "@/contexts/product-add-on-context"
 import { useAuth } from "@/contexts/auth-context"
 import { DiscardChangesDialog } from "./discard-changes-dialog"
+import { generateCodeFromName } from "@/lib/utils"
 
 interface AddAddOnModalProps {
   isOpen: boolean
@@ -138,10 +139,20 @@ export function AddAddOnModal({ isOpen, onClose, onHasChangesChange, addOn, isEd
   }, [formData, initialFormData, imageBase64, initialImage, onHasChangesChange])
 
   const handleInputChange = (field: keyof typeof formData, value: string | boolean) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }))
+    setFormData((prev) => {
+      const updated = {
+        ...prev,
+        [field]: value,
+      }
+      // Auto-generate code from name when name changes
+      if (field === "name" && typeof value === "string") {
+        const generatedCode = generateCodeFromName(value)
+        if (generatedCode) {
+          updated.code = generatedCode
+        }
+      }
+      return updated
+    })
   }
 
   // Get all subcategories for direct selection

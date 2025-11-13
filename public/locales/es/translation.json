@@ -413,7 +413,7 @@
       "addNewCasePan": "Agregar nueva bandeja de casos",
       "casePanDetails": "Detalles de la bandeja de casos",
       "casePanName": "Nombre de la bandeja de casos *",
-      "casePanCode": "Código de la bandeja de casos (ej., CP001) *",
+      "casePanCode": "Código de la bandeja de casos (ej., R01) *",
       "description": "Descripción",
       "chooseArch": "Selecciona la arcada aplicable *",
       "upperArch": "Arcada superior",

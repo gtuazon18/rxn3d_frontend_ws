@@ -21,7 +21,6 @@ import { useTranslation } from "react-i18next"
 import { useCustomer } from "@/contexts/customer-context"
 import { useAuth } from "@/contexts/auth-context" // <-- add this import
 import { DiscardChangesDialog } from "./discard-changes-dialog"
-import { getAuthToken } from "@/lib/auth-utils"
 import { LoadingOverlay } from "@/components/ui/loading-overlay"
 
 // Section components
@@ -267,55 +266,6 @@ export function AddLabProductModal({
     fetchCustomers("office")
   }, [fetchParentDropdownCategories, fetchGrades, fetchStages, fetchImpressions, fetchGumShadeBrands, fetchTeethShadeBrands, fetchMaterials, fetchRetentions, fetchAddOns, fetchCustomers])
 
-  // Generate next available product code starting with PC
-  const generateNextProductCode = useCallback(async (): Promise<string> => {
-    try {
-      const token = getAuthToken()
-      const customerId = localStorage.getItem("customerId")
-      
-      // Fetch products to find the highest PC code
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/library/products?per_page=1000&customer_id=${customerId || ''}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      )
-
-      if (!response.ok) {
-        // If fetch fails, start with PC0001
-        return "PC0001"
-      }
-
-      const result = await response.json()
-      const products = result.data?.products || result.products || []
-
-      // Extract all numeric parts from existing codes that start with "PC"
-      const existingCodes = products
-        .map((p: any) => p.code)
-        .filter((code: string) => code && code.toUpperCase().startsWith("PC"))
-        .map((code: string) => {
-          // Extract numeric part after "PC"
-          const match = code.toUpperCase().match(/^PC(\d+)$/)
-          return match ? parseInt(match[1], 10) : 0
-        })
-        .filter((num: number) => num > 0)
-
-      // Find the highest number
-      const maxNumber = existingCodes.length > 0 ? Math.max(...existingCodes) : 0
-
-      // Generate next number (pad with zeros to 4 digits)
-      const nextNumber = maxNumber + 1
-      return `PC${nextNumber.toString().padStart(4, "0")}`
-    } catch (error) {
-      console.error("Failed to generate product code:", error)
-      // Fallback to PC0001 if there's an error
-      return "PC0001"
-    }
-  }, [])
 
   useEffect(() => {
     if (isOpen) {
@@ -463,22 +413,17 @@ export function AddLabProductModal({
       setCustomGumShadeNames({}) // Clear custom gum shade names when editing
       setCustomTeethShadeNames({}) // Clear custom teeth shade names when editing
     } else if (isOpen && !editingProduct) {
-      // Generate auto code for new product
-      generateNextProductCode().then((autoCode) => {
-        const initialValues = getInitialFormValues()
-        reset({
-          ...initialValues,
-          code: autoCode,
-        })
-        setInitialFormValues(null) // Clear initial values for new product
-        clearValidationErrors()
-        setCustomGradeNames({}) // Clear custom grade names for new product
-        setCustomImpressionNames({}) // Clear custom impression names for new product
-        setCustomGumShadeNames({}) // Clear custom gum shade names for new product
-        setCustomTeethShadeNames({}) // Clear custom teeth shade names for new product
-      })
+      // Reset to initial values (code will be generated from name)
+      const initialValues = getInitialFormValues()
+      reset(initialValues)
+      setInitialFormValues(null) // Clear initial values for new product
+      clearValidationErrors()
+      setCustomGradeNames({}) // Clear custom grade names for new product
+      setCustomImpressionNames({}) // Clear custom impression names for new product
+      setCustomGumShadeNames({}) // Clear custom gum shade names for new product
+      setCustomTeethShadeNames({}) // Clear custom teeth shade names for new product
     }
-  }, [isOpen, editingProduct, reset, clearValidationErrors, getInitialFormValues, generateNextProductCode])
+  }, [isOpen, editingProduct, reset, clearValidationErrors, getInitialFormValues])
 
   const getValidationError = useCallback((fieldName: string) => {
     // Check exact match first

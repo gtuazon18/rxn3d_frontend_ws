@@ -13,6 +13,7 @@ import { useProductCategory, type ProductCategory } from "@/contexts/product-cat
 import { useProductLibrary, type CasePan } from "@/contexts/product-case-pan-context"
 import { useTranslation } from "react-i18next"
 import { z } from "zod"
+import { generateCodeFromName } from "@/lib/utils"
 
 interface AddCategoryModalProps {
   isOpen: boolean
@@ -21,6 +22,8 @@ interface AddCategoryModalProps {
   isEdit?: boolean // Add this prop to indicate edit mode
   isSubCategoryEdit?: boolean // Add this prop to indicate if editing a subcategory
   disableAllFields?: boolean // <-- new prop
+  isCopying?: boolean // Flag to indicate if we're copying a category
+  copyingCategory?: ProductCategory | null // Category data for copying
 }
 
 const NO_PARENT_CATEGORIES_VALUE = "__NO_PARENT_CATEGORIES__"
@@ -38,7 +41,7 @@ const categorySchema = z.object({
   }),
 })
 
-export function AddCategoryModal({ isOpen, onClose, editId, isEdit, isSubCategoryEdit, disableAllFields }: AddCategoryModalProps) {
+export function AddCategoryModal({ isOpen, onClose, editId, isEdit, isSubCategoryEdit, disableAllFields, isCopying = false, copyingCategory = null }: AddCategoryModalProps) {
   const {
     createCategory,
     createSubCategory,
@@ -100,7 +103,34 @@ export function AddCategoryModal({ isOpen, onClose, editId, isEdit, isSubCategor
 
   // Always fetch detail in edit mode for subcategory
   useEffect(() => {
-    if (isOpen && isEdit && isSubCategoryEdit && editId) {
+    if (isOpen && isCopying && copyingCategory) {
+      // Copying: use the provided copyingCategory data directly (no API call needed)
+      setFormData({
+        name: copyingCategory.name || "",
+        code: copyingCategory.code || "",
+        type: copyingCategory.type || "Both",
+        sequence: copyingCategory.sequence || 1,
+        status: copyingCategory.status || "Active",
+        parent_id: copyingCategory.parent_id ?? (copyingCategory as any).category_id ?? null,
+        case_pan_id: (copyingCategory as any).case_pan_id ?? null,
+      })
+      setIsSubCategory(!!copyingCategory.parent_id || !!(copyingCategory as any).category_id)
+      setDetailLoadedId(null)
+      setIsCustomValue(undefined)
+      setDisableEditFields(false)
+      
+      // Set image if available
+      if ((copyingCategory as any).image_url) {
+        setImageBase64((copyingCategory as any).image_url)
+        setImagePreview((copyingCategory as any).image_url)
+      } else {
+        setImageBase64(null)
+        setImagePreview(null)
+      }
+      fetchCasePans()
+      fetchParentDropdownCategories()
+    } else if (isOpen && isEdit && isSubCategoryEdit && editId && !isCopying) {
+      // Editing: fetch detail from API
       setIsDetailLoading(true)
       getSubCategoryDetail(editId).then((detail) => {
         if (detail) {
@@ -130,7 +160,8 @@ export function AddCategoryModal({ isOpen, onClose, editId, isEdit, isSubCategor
       })
       fetchCasePans()
       fetchParentDropdownCategories()
-    } else if (isOpen && (!isEdit || !isSubCategoryEdit)) {
+    } else if (isOpen && (!isEdit || !isSubCategoryEdit) && !isCopying) {
+      // New category: reset form
       resetForm()
       setIsDetailLoading(false)
       setDetailLoadedId(null)
@@ -140,7 +171,7 @@ export function AddCategoryModal({ isOpen, onClose, editId, isEdit, isSubCategor
       fetchParentDropdownCategories()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, isEdit, isSubCategoryEdit, editId])
+  }, [isOpen, isEdit, isSubCategoryEdit, editId, isCopying, copyingCategory])
 
   // Use detailLoadedId to control readonly/disabled state
   useEffect(() => {
@@ -172,10 +203,20 @@ export function AddCategoryModal({ isOpen, onClose, editId, isEdit, isSubCategor
     if (value === NO_PARENT_CATEGORIES_VALUE || value === NO_CASE_PANS_VALUE) {
       return
     }
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }))
+    setFormData((prev) => {
+      const updated = {
+        ...prev,
+        [field]: value,
+      }
+      // Auto-generate code from name when name changes
+      if (field === "name" && typeof value === "string") {
+        const generatedCode = generateCodeFromName(value)
+        if (generatedCode) {
+          updated.code = generatedCode
+        }
+      }
+      return updated
+    })
   }
 
   const handleArchChange = (archLabel: string) => {
@@ -300,7 +341,8 @@ export function AddCategoryModal({ isOpen, onClose, editId, isEdit, isSubCategor
 
     let success = false
     try {
-      if (isEdit && isSubCategoryEdit && editId) {
+      // If copying, always create (not update)
+      if (isEdit && isSubCategoryEdit && editId && !isCopying) {
         // Edit mode: update subcategory using context updateCategory
         success = await updateCategory(editId, payload, true)
       } else if (isSubCategory) {
@@ -371,9 +413,11 @@ export function AddCategoryModal({ isOpen, onClose, editId, isEdit, isSubCategor
         <DialogContent className="p-0 gap-0 sm:max-w-[700px] lg:max-w-[800px] xl:max-w-[900px] overflow-hidden bg-white rounded-md">
           <DialogHeader className="px-6 py-4 border-b">
             <DialogTitle className="text-xl font-bold">
-              {isEdit && isSubCategoryEdit
-                ? t("categoryModal.editTitle", "Edit Sub Category")
-                : t("categoryModal.title", "Add New Case Category/Sub Category")}
+              {isCopying
+                ? t("categoryModal.copyCategory", "Copy Category")
+                : isEdit && isSubCategoryEdit
+                  ? t("categoryModal.editTitle", "Edit Sub Category")
+                  : t("categoryModal.title", "Add New Case Category/Sub Category")}
             </DialogTitle>
             <Button variant="ghost" size="icon" onClick={handleClose} className="h-8 w-8 absolute right-4 top-4">
               <X className="h-5 w-5" />
@@ -660,10 +704,14 @@ export function AddCategoryModal({ isOpen, onClose, editId, isEdit, isSubCategor
                 disabled={overallLoading || effectiveDisableFields}
               >
                 {overallLoading
-                  ? t("categoryModal.saving", "Saving...")
-                  : isEdit && isSubCategoryEdit
-                  ? t("categoryModal.saveEdit", "Save Changes")
-                  : t("categoryModal.saveCategory", "Save Category")}
+                  ? (isCopying
+                      ? t("categoryModal.copying", "Copying...")
+                      : t("categoryModal.saving", "Saving..."))
+                  : isCopying
+                    ? t("categoryModal.copyCategory", "Copy Category")
+                    : isEdit && isSubCategoryEdit
+                      ? t("categoryModal.saveEdit", "Save Changes")
+                      : t("categoryModal.saveCategory", "Save Category")}
               </Button>
             )}
           </DialogFooter>

@@ -14,10 +14,16 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { useStages, type Stage } from "@/contexts/product-stages-context"
+import { useMaterials, type Material } from "@/contexts/product-materials-context"
+import { useImpressions, type Impression } from "@/contexts/product-impression-context"
+import { useRetention } from "@/contexts/product-retention-context"
 import { useTranslation } from "react-i18next"
 import { DiscardChangesDialog } from "./discard-changes-dialog"
 import { fetchProductsWithCache } from "@/services/product-modal-api"
 import { linkStagesToProducts, buildLinkPayload } from "@/services/stage-product-link-api"
+import { linkMaterialsToProducts, buildMaterialLinkPayload } from "@/services/material-product-link-api"
+import { linkImpressionsToProducts, buildImpressionLinkPayload } from "@/services/impression-product-link-api"
+import { linkRetentionsToProducts, buildRetentionLinkPayload } from "@/services/retention-product-link-api"
 import { useToast } from "@/hooks/use-toast"
 import { LoadingOverlay } from "@/components/ui/loading-overlay"
 
@@ -28,24 +34,65 @@ interface Product {
   imageStatus: "none" | "some" | "all"
   isSelected: boolean
   stages?: any[]
+  materials?: any[]
+  impressions?: any[]
+  retentions?: any[]
 }
+
+type EntityType = "stage" | "material" | "impression" | "retention"
 
 interface LinkProductsModalProps {
   isOpen: boolean
   onClose: () => void
+  entityType?: EntityType // Type of entity being linked (stage, material, impression)
   context?: "global" | "lab" // Add context prop to differentiate between global and lab usage
-  onApply?: (selectedStages: number[], selectedProducts: number[]) => void // Custom apply handler
+  onApply?: (selectedEntities: number[], selectedProducts: number[]) => void // Custom apply handler
   customProducts?: Product[] // Allow custom product data to be passed in
 }
 
 // Mock data removed - now using API data from fetchProductsWithCache
 
-export function LinkProductsModal({ isOpen, onClose, context = "global", onApply, customProducts }: LinkProductsModalProps) {
+export function LinkProductsModal({ isOpen, onClose, entityType = "stage", context = "global", onApply, customProducts }: LinkProductsModalProps) {
   const { stages } = useStages()
+  const { materials } = useMaterials()
+  const { impressions } = useImpressions()
+  const { retentions } = useRetention()
   const { t } = useTranslation()
   const { toast } = useToast()
 
-  const [selectedStages, setSelectedStages] = useState<number[]>([]) // Multiple stage selection
+  // Get entities based on entityType
+  const getEntities = () => {
+    switch (entityType) {
+      case "material":
+        return materials
+      case "impression":
+        return impressions
+      case "retention":
+        return retentions
+      case "stage":
+      default:
+        return stages
+    }
+  }
+
+  const entities = getEntities()
+
+  // Get entity name for labels
+  const getEntityName = (singular: boolean = false) => {
+    switch (entityType) {
+      case "material":
+        return singular ? "Material" : "Materials"
+      case "impression":
+        return singular ? "Impression" : "Impressions"
+      case "retention":
+        return singular ? "Retention" : "Retentions"
+      case "stage":
+      default:
+        return singular ? "Stage" : "Stages"
+    }
+  }
+
+  const [selectedEntities, setSelectedEntities] = useState<number[]>([]) // Multiple entity selection
   const [selectedProducts, setSelectedProducts] = useState<number[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [activeTab, setActiveTab] = useState<"individual" | "category">("individual")
@@ -62,7 +109,7 @@ export function LinkProductsModal({ isOpen, onClose, context = "global", onApply
   // Category selection state
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
 
-  // Image upload state - stores images for each product-stage combination
+  // Image upload state - stores images for each product-entity combination
   const [uploadedImages, setUploadedImages] = useState<Record<string, File>>({})
   // Image preview URLs for displaying thumbnails
   const [imagePreviews, setImagePreviews] = useState<Record<string, string>>({})
@@ -131,24 +178,33 @@ export function LinkProductsModal({ isOpen, onClose, context = "global", onApply
     fetchProducts()
   }, [isOpen, customProducts])
 
+  // Reset selections when modal opens/closes or entityType changes
+  useEffect(() => {
+    if (!isOpen) {
+      setSelectedEntities([])
+      setSelectedProducts([])
+      setHasChanges(false)
+    }
+  }, [isOpen, entityType])
+
   // Initialize selected products with pre-selected items from the products data
   useEffect(() => {
-    if (products.length > 0 && selectedProducts.length === 0) {
+    if (products.length > 0 && selectedProducts.length === 0 && isOpen) {
       const preSelected = products.filter(p => p.isSelected).map(p => p.id)
       setSelectedProducts(preSelected)
     }
-  }, [products, selectedProducts.length])
+  }, [products, selectedProducts.length, isOpen])
 
   // Filter products based on search query
   const filteredProducts = products.filter(product =>
     product.name.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  const handleStageSelect = (stageId: number, checked: boolean) => {
+  const handleEntitySelect = (entityId: number, checked: boolean) => {
     if (checked) {
-      setSelectedStages([...selectedStages, stageId])
+      setSelectedEntities([...selectedEntities, entityId])
     } else {
-      setSelectedStages(selectedStages.filter(id => id !== stageId))
+      setSelectedEntities(selectedEntities.filter(id => id !== entityId))
     }
     setHasChanges(true)
   }
@@ -162,11 +218,11 @@ export function LinkProductsModal({ isOpen, onClose, context = "global", onApply
     setHasChanges(true)
   }
 
-  const handleSelectAllStages = () => {
-    if (selectedStages.length === stages.length) {
-      setSelectedStages([])
+  const handleSelectAllEntities = () => {
+    if (selectedEntities.length === entities.length) {
+      setSelectedEntities([])
     } else {
-      setSelectedStages(stages.map(stage => stage.id))
+      setSelectedEntities(entities.map((entity: any) => entity.id))
     }
     setHasChanges(true)
   }
@@ -207,8 +263,8 @@ export function LinkProductsModal({ isOpen, onClose, context = "global", onApply
     setHasChanges(true)
   }
 
-  const handleImageUpload = (productId: number, stageId: number, file: File | null) => {
-    const key = `${productId}-${stageId}`
+  const handleImageUpload = (productId: number, entityId: number, file: File | null) => {
+    const key = `${productId}-${entityId}`
     if (file) {
       // Create preview URL
       const previewUrl = URL.createObjectURL(file)
@@ -246,20 +302,29 @@ export function LinkProductsModal({ isOpen, onClose, context = "global", onApply
 
   const handleClearAllImages = (productId: number) => {
     const product = products.find(p => p.id === productId)
-    if (!product || !product.stages) return
+    if (!product) return
+
+    // Get the appropriate property based on entityType
+    const entityList = entityType === "material" 
+      ? (product.materials || [])
+      : entityType === "impression"
+      ? (product.impressions || [])
+      : entityType === "retention"
+      ? (product.retentions || [])
+      : (product.stages || [])
 
     setUploadedImages(prev => {
       const newImages = { ...prev }
-      product.stages?.forEach((stage: any) => {
-        const key = `${productId}-${stage.id}`
+      entityList.forEach((entity: any) => {
+        const key = `${productId}-${entity.id}`
         delete newImages[key]
       })
       return newImages
     })
     setImagePreviews(prev => {
       const newPreviews = { ...prev }
-      product.stages?.forEach((stage: any) => {
-        const key = `${productId}-${stage.id}`
+      entityList.forEach((entity: any) => {
+        const key = `${productId}-${entity.id}`
         if (newPreviews[key]) {
           URL.revokeObjectURL(newPreviews[key])
           delete newPreviews[key]
@@ -275,8 +340,8 @@ export function LinkProductsModal({ isOpen, onClose, context = "global", onApply
   }
 
   // Handler to delete individual image
-  const handleDeleteImage = (productId: number, stageId: number) => {
-    handleImageUpload(productId, stageId, null)
+  const handleDeleteImage = (productId: number, entityId: number) => {
+    handleImageUpload(productId, entityId, null)
   }
 
   // Update ref whenever imagePreviews changes
@@ -320,22 +385,22 @@ export function LinkProductsModal({ isOpen, onClose, context = "global", onApply
     }
   }
 
-  // Calculate image status for a product based on uploaded images and selected stages
+  // Calculate image status for a product based on uploaded images and selected entities
   const calculateImageStatus = (productId: number): "none" | "some" | "all" => {
     // If product is not selected, return "none"
     if (!selectedProducts.includes(productId)) {
       return "none"
     }
 
-    // If no stages are selected, return "none"
-    if (selectedStages.length === 0) {
+    // If no entities are selected, return "none"
+    if (selectedEntities.length === 0) {
       return "none"
     }
 
-    // Count how many selected stages have images uploaded for this product
+    // Count how many selected entities have images uploaded for this product
     let imagesCount = 0
-    selectedStages.forEach((stageId) => {
-      const imageKey = `${productId}-${stageId}`
+    selectedEntities.forEach((entityId) => {
+      const imageKey = `${productId}-${entityId}`
       if (uploadedImages[imageKey]) {
         imagesCount++
       }
@@ -344,7 +409,7 @@ export function LinkProductsModal({ isOpen, onClose, context = "global", onApply
     // Determine status based on image count
     if (imagesCount === 0) {
       return "none"
-    } else if (imagesCount === selectedStages.length) {
+    } else if (imagesCount === selectedEntities.length) {
       return "all"
     } else {
       return "some"
@@ -354,17 +419,17 @@ export function LinkProductsModal({ isOpen, onClose, context = "global", onApply
   const handleApply = async () => {
     // Use custom apply handler if provided
     if (onApply) {
-      onApply(selectedStages, selectedProducts)
+      onApply(selectedEntities, selectedProducts)
       setHasChanges(false)
       onClose()
       return
     }
 
-    // Default behavior - call API to link stages to products
-    if (selectedStages.length === 0 || selectedProducts.length === 0) {
+    // Default behavior - call API to link entities to products
+    if (selectedEntities.length === 0 || selectedProducts.length === 0) {
       toast({
         title: "Selection Required",
-        description: "Please select at least one stage and one product.",
+        description: `Please select at least one ${getEntityName(true).toLowerCase()} and one product.`,
         variant: "destructive",
       })
       return
@@ -373,16 +438,52 @@ export function LinkProductsModal({ isOpen, onClose, context = "global", onApply
     setIsSubmitting(true)
 
     try {
-      // Build the payload for multiple stages
-      const payload = buildLinkPayload(
-        selectedStages,
-        selectedProducts,
-        products,
-        stages
-      )
+      let response: any
 
-      // Call the API
-      const response = await linkStagesToProducts(payload)
+      // Call the appropriate API based on entityType
+      switch (entityType) {
+        case "material": {
+          const payload = buildMaterialLinkPayload(
+            selectedEntities,
+            selectedProducts,
+            products,
+            materials
+          )
+          response = await linkMaterialsToProducts(payload)
+          break
+        }
+        case "impression": {
+          const payload = buildImpressionLinkPayload(
+            selectedEntities,
+            selectedProducts,
+            products,
+            impressions
+          )
+          response = await linkImpressionsToProducts(payload)
+          break
+        }
+        case "retention": {
+          const payload = buildRetentionLinkPayload(
+            selectedEntities,
+            selectedProducts,
+            products,
+            retentions
+          )
+          response = await linkRetentionsToProducts(payload)
+          break
+        }
+        case "stage":
+        default: {
+          const payload = buildLinkPayload(
+            selectedEntities,
+            selectedProducts,
+            products,
+            stages
+          )
+          response = await linkStagesToProducts(payload)
+          break
+        }
+      }
 
       // Check both 'success' and 'status' fields for compatibility
       const isSuccess = response.success || response.status
@@ -391,7 +492,7 @@ export function LinkProductsModal({ isOpen, onClose, context = "global", onApply
         console.log("API call successful - closing modal")
         toast({
           title: "Success",
-          description: response.message || "Stages linked to products successfully!",
+          description: response.message || `${getEntityName()} linked to products successfully!`,
         })
         setHasChanges(false)
 
@@ -399,15 +500,16 @@ export function LinkProductsModal({ isOpen, onClose, context = "global", onApply
         setApiProducts(prevProducts =>
           prevProducts.map(product => {
             if (selectedProducts.includes(product.id)) {
-              // Product was just linked with stages - update status to "some"
+              // Product was just linked with entities - update status to "some"
+              const entityProperty = entityType === "material" ? "materials" : entityType === "impression" ? "impressions" : entityType === "retention" ? "retentions" : "stages"
               return {
                 ...product,
                 imageStatus: "some" as const,
-                stages: [
-                  ...(product.stages || []),
-                  ...selectedStages.map(stageId => {
-                    const stage = stages.find(s => s.id === stageId)
-                    return stage
+                [entityProperty]: [
+                  ...(product[entityProperty as keyof Product] as any[] || []),
+                  ...selectedEntities.map(entityId => {
+                    const entity = entities.find((e: any) => e.id === entityId)
+                    return entity
                   }).filter(Boolean)
                 ]
               }
@@ -417,20 +519,20 @@ export function LinkProductsModal({ isOpen, onClose, context = "global", onApply
         )
 
         // Reset selections
-        setSelectedStages([])
+        setSelectedEntities([])
         setSelectedProducts([])
         setExpandedProduct(null)
 
         // Close the modal after successful linking
         onClose()
       } else {
-        throw new Error(response.message || "Failed to link stages to products")
+        throw new Error(response.message || `Failed to link ${getEntityName(true).toLowerCase()}s to products`)
       }
     } catch (error: any) {
-      console.error("Error linking stages to products:", error)
+      console.error(`Error linking ${getEntityName(true).toLowerCase()}s to products:`, error)
       toast({
         title: "Error",
-        description: error.message || "Failed to link stages to products. Please try again.",
+        description: error.message || `Failed to link ${getEntityName(true).toLowerCase()}s to products. Please try again.`,
         variant: "destructive",
       })
     } finally {
@@ -464,7 +566,7 @@ export function LinkProductsModal({ isOpen, onClose, context = "global", onApply
           <DialogHeader className="px-6 py-4 border-b">
             <div className="flex items-center justify-between">
               <DialogTitle className="text-xl font-bold">
-                Assign Stages to Products {context === "lab" ? "(Lab)" : "(Global)"}
+                Assign {getEntityName()} to Products {context === "lab" ? "(Lab)" : "(Global)"}
               </DialogTitle>
               <button onClick={handleClose} className="text-gray-500 hover:text-gray-700">
                 <X className="h-5 w-5" />
@@ -484,23 +586,27 @@ export function LinkProductsModal({ isOpen, onClose, context = "global", onApply
                     <path d="M29.9942 10.9121H23.9942C23.4419 10.9121 22.9942 11.3598 22.9942 11.9121V17.9121C22.9942 18.4644 23.4419 18.9121 23.9942 18.9121H29.9942C30.5465 18.9121 30.9942 18.4644 30.9942 17.9121V11.9121C30.9942 11.3598 30.5465 10.9121 29.9942 10.9121Z" stroke="white" stroke-linecap="round" stroke-linejoin="round" />
                   </svg>
 
-                  <h3 className="font-semibold text-gray-900">Select Stages to Assign</h3>
+                  <h3 className="font-semibold text-gray-900">Select {getEntityName()} to Assign</h3>
                 </div>
               </div>
 
               <div className="flex-1 overflow-y-auto p-4">
                 <div className="space-y-3">
-                  {stages.map((stage) => (
-                    <div key={stage.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
+                  {entities.map((entity: any) => (
+                    <div key={entity.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
                       <div className="flex items-center gap-3">
                         <Checkbox
-                          checked={selectedStages.includes(stage.id)}
-                          onCheckedChange={(checked) => handleStageSelect(stage.id, !!checked)}
+                          checked={selectedEntities.includes(entity.id)}
+                          onCheckedChange={(checked) => handleEntitySelect(entity.id, !!checked)}
                           className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
                         />
-                        <span className="font-medium text-gray-900">{stage.name}</span>
+                        <span className="font-medium text-gray-900">{entity.name}</span>
                       </div>
-                      <span className="text-sm font-semibold text-gray-600">${stage.price || 0}</span>
+                      {(entity.price !== undefined || (entity as any).lab_material?.price !== undefined || (entity as any).lab_retention?.price !== undefined) && (
+                        <span className="text-sm font-semibold text-gray-600">
+                          ${typeof entity.price === 'number' ? entity.price : (entity as any).lab_material?.price || (entity as any).lab_retention?.price || 0}
+                        </span>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -512,15 +618,15 @@ export function LinkProductsModal({ isOpen, onClose, context = "global", onApply
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={handleSelectAllStages}
+                      onClick={handleSelectAllEntities}
                       className="text-gray-700 border-gray-300 hover:bg-gray-100"
                     >
-                      {selectedStages.length === stages.length ? "Clear all" : "Select all"}
+                      {selectedEntities.length === entities.length ? "Clear all" : "Select all"}
                     </Button>
                   </div>
                 </div>
                 <p className="text-sm text-gray-600">
-                  {selectedStages.length} stage{selectedStages.length !== 1 ? 's' : ''} selected
+                  {selectedEntities.length} {getEntityName(true).toLowerCase()}{selectedEntities.length !== 1 ? 's' : ''} selected
                 </p>
               </div>
             </div>
@@ -684,26 +790,26 @@ export function LinkProductsModal({ isOpen, onClose, context = "global", onApply
 
                             {expandedProduct === product.id && (
                               <div className="mt-2 space-y-3">
-                                {selectedStages.length > 0 ? (
-                                  // Show only the selected stages for image upload
-                                  selectedStages.map((stageId) => {
-                                    const stage = stages.find(s => s.id === stageId)
-                                    if (!stage) return null
+                                {selectedEntities.length > 0 ? (
+                                  // Show only the selected entities for image upload
+                                  selectedEntities.map((entityId) => {
+                                    const entity = entities.find((e: any) => e.id === entityId)
+                                    if (!entity) return null
 
-                                    const imageKey = `${product.id}-${stage.id}`
+                                    const imageKey = `${product.id}-${entity.id}`
                                     const hasImage = uploadedImages[imageKey]
 
                                     const previewUrl = imagePreviews[imageKey]
 
                                     return (
-                                      <div key={stage.id} className="space-y-2">
+                                      <div key={entity.id} className="space-y-2">
                                         <div className="flex items-center gap-2">
                                           {/* Image Preview */}
                                           {previewUrl ? (
                                             <div className="relative w-16 h-16 border border-gray-200 rounded overflow-hidden flex-shrink-0">
                                               <img
                                                 src={previewUrl}
-                                                alt={hasImage?.name || stage.name}
+                                                alt={hasImage?.name || entity.name}
                                                 className="w-full h-full object-cover"
                                               />
                                             </div>
@@ -717,7 +823,7 @@ export function LinkProductsModal({ isOpen, onClose, context = "global", onApply
                                           <div className="flex-1 flex items-center gap-2">
                                             <Input
                                               value={hasImage ? hasImage.name : ''}
-                                              placeholder={stage.name}
+                                              placeholder={entity.name}
                                               className="flex-1 h-8 text-sm"
                                               readOnly
                                             />
@@ -739,7 +845,7 @@ export function LinkProductsModal({ isOpen, onClose, context = "global", onApply
                                                 variant="outline"
                                                 className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                                                 type="button"
-                                                onClick={() => handleDeleteImage(product.id, stage.id)}
+                                                onClick={() => handleDeleteImage(product.id, entity.id)}
                                                 title="Delete image"
                                               >
                                                 <Trash2 className="h-4 w-4" />
@@ -755,7 +861,7 @@ export function LinkProductsModal({ isOpen, onClose, context = "global", onApply
                                           onChange={(e) => {
                                             const file = e.target.files?.[0]
                                             if (file) {
-                                              handleImageUpload(product.id, stage.id, file)
+                                              handleImageUpload(product.id, entity.id, file)
                                             }
                                             // Reset input to allow selecting the same file again
                                             e.target.value = ''
@@ -766,7 +872,7 @@ export function LinkProductsModal({ isOpen, onClose, context = "global", onApply
                                   })
                                 ) : (
                                   <div className="text-sm text-gray-500 text-center py-2">
-                                    Please select stages to upload images
+                                    Please select {getEntityName(true).toLowerCase()}s to upload images
                                   </div>
                                 )}
                                 <div className="flex items-center justify-between text-xs">
@@ -846,7 +952,7 @@ export function LinkProductsModal({ isOpen, onClose, context = "global", onApply
               <Button
                 onClick={handleApply}
                 className="bg-[#1162a8] hover:bg-[#0f5497] text-white"
-                disabled={selectedStages.length === 0 || selectedProducts.length === 0 || isSubmitting}
+                disabled={selectedEntities.length === 0 || selectedProducts.length === 0 || isSubmitting}
               >
                 {isSubmitting ? (
                   <>
@@ -856,7 +962,7 @@ export function LinkProductsModal({ isOpen, onClose, context = "global", onApply
                 ) : (
                   <>
                     <Package className="h-4 w-4 mr-2" />
-                    Apply stages to selected products
+                    Apply {getEntityName(true).toLowerCase()}s to selected products
                   </>
                 )}
               </Button>
@@ -867,7 +973,7 @@ export function LinkProductsModal({ isOpen, onClose, context = "global", onApply
 
       <DiscardChangesDialog
         isOpen={isDiscardDialogOpen}
-        type="stage"
+        type={entityType === "material" ? "material" : entityType === "impression" ? "impression" : entityType === "retention" ? "retention" : "stage"}
         onDiscard={handleDiscard}
         onKeepEditing={handleKeepEditing}
       />
@@ -875,8 +981,8 @@ export function LinkProductsModal({ isOpen, onClose, context = "global", onApply
       {/* Loading Overlay for Linking */}
       <LoadingOverlay
         isLoading={isSubmitting}
-        title="Linking Stages to Products..."
-        message="Please wait while we link the selected stages to products."
+        title={`Linking ${getEntityName()} to Products...`}
+        message={`Please wait while we link the selected ${getEntityName(true).toLowerCase()}s to products.`}
         zIndex={99999}
       />
     </>

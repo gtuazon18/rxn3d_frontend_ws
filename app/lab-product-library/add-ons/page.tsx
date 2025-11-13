@@ -352,11 +352,6 @@ export default function AddOnsPage() {
                       className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
                     />
                   </TableHead>
-                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("category_name")}>
-                    <div className="flex items-center">
-                      {t("Add-on Category")}
-                    </div>
-                  </TableHead>
                   <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("subcategory_name")}>
                     <div className="flex items-center">
                       {t("Add-on Sub Category")}
@@ -391,7 +386,6 @@ export default function AddOnsPage() {
                           className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
                         />
                       </TableCell>
-                      <TableCell className="font-medium text-gray-900">{addOn.category_name}</TableCell>
                       <TableCell className="text-gray-600">{addOn.subcategory_name}</TableCell>
                       <TableCell className="font-medium text-gray-900">{addOn.name}</TableCell>
                       {/* New Price Cell */}

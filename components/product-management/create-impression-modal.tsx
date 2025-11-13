@@ -1,15 +1,16 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import { X, ChevronDown, Info, Upload, Image as ImageIcon, Trash2 } from "lucide-react"
+import { X, ChevronDown, Info } from "lucide-react"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useImpressions, Impression } from "@/contexts/product-impression-context"
 import { DialogTitle } from "@radix-ui/react-dialog"
-import { getAuthToken } from "@/lib/auth-utils"
+import { generateCodeFromName } from "@/lib/utils"
 
 interface CreateImpressionModalProps {
   isOpen: boolean
@@ -17,15 +18,17 @@ interface CreateImpressionModalProps {
   onChanges: (hasChanges: boolean) => void
   impression?: Impression | null
   mode?: "create" | "edit"
+  isCopying?: boolean // Flag to indicate if we're copying an impression
 }
 
-export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, mode = "create" }: CreateImpressionModalProps) {
+export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, mode = "create", isCopying = false }: CreateImpressionModalProps) {
   const { createImpression, updateImpression, isLoading } = useImpressions()
   const [impressionDetailsEnabled, setImpressionDetailsEnabled] = useState(true)
   const [impressionName, setImpressionName] = useState("")
   const [impressionCode, setImpressionCode] = useState("")
   const [impressionUrl, setImpressionUrl] = useState("")
   const [showOpposingWarning, setShowOpposingWarning] = useState("yes")
+  const [status, setStatus] = useState("Active")
   const [linkToProductsOpen, setLinkToProductsOpen] = useState(false)
   const [linkToGroupOpen, setLinkToGroupOpen] = useState(false)
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
@@ -34,64 +37,9 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
+  const [showPreviewModal, setShowPreviewModal] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Generate next available impression code starting with IM
-  const generateNextImpressionCode = useCallback(async (): Promise<string> => {
-    try {
-      const token = getAuthToken()
-      const customerId = localStorage.getItem("customerId")
-      
-      // Fetch impressions to find the highest IM code
-      const params = new URLSearchParams({
-        per_page: "1000",
-      })
-      if (customerId) {
-        params.append("customer_id", customerId)
-      }
-
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/library/impressions?${params.toString()}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      )
-
-      if (!response.ok) {
-        // If fetch fails, start with IM0001
-        return "IM0001"
-      }
-
-      const result = await response.json()
-      const allImpressions = result.data?.data || result.data || []
-
-      // Extract all numeric parts from existing codes that start with "IM"
-      const existingCodes = allImpressions
-        .map((i: Impression) => i.code)
-        .filter((code: string) => code && code.toUpperCase().startsWith("IM"))
-        .map((code: string) => {
-          // Extract numeric part after "IM"
-          const match = code.toUpperCase().match(/^IM(\d+)$/)
-          return match ? parseInt(match[1], 10) : 0
-        })
-        .filter((num: number) => num > 0)
-
-      // Find the highest number
-      const maxNumber = existingCodes.length > 0 ? Math.max(...existingCodes) : 0
-
-      // Generate next number (pad with zeros to 4 digits)
-      const nextNumber = maxNumber + 1
-      return `IM${nextNumber.toString().padStart(4, "0")}`
-    } catch (error) {
-      console.error("Failed to generate impression code:", error)
-      // Fallback to IM0001 if there's an error
-      return "IM0001"
-    }
-  }, [])
 
   // Track changes
   useEffect(() => {
@@ -102,30 +50,40 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
   // Reset form when modal opens or impression changes
   useEffect(() => {
     if (isOpen) {
-      if (mode === "edit" && impression) {
+      if (isCopying && impression) {
+        // Copying: use the provided impression data directly (no API call needed)
         setImpressionName(impression.name || "")
         setImpressionCode(impression.code || "")
         setImpressionUrl(impression.url || "")
         setSelectedImage(impression.image_url || null)
         setImpressionDetailsEnabled(true)
         setShowOpposingWarning(impression.is_digital_impression?.toLowerCase() === "yes" ? "yes" : "no")
+        setStatus(impression.status || "Active")
+      } else if (mode === "edit" && impression && !isCopying) {
+        // Editing: use the provided impression data
+        setImpressionName(impression.name || "")
+        setImpressionCode(impression.code || "")
+        setImpressionUrl(impression.url || "")
+        setSelectedImage(impression.image_url || null)
+        setImpressionDetailsEnabled(true)
+        setShowOpposingWarning(impression.is_digital_impression?.toLowerCase() === "yes" ? "yes" : "no")
+        setStatus(impression.status || "Active")
       } else {
-        // Generate auto code for new impression
-        generateNextImpressionCode().then((autoCode) => {
-          setImpressionCode(autoCode)
-        })
+        // New impression: reset form
+        setImpressionCode("")
         setImpressionName("")
         setImpressionUrl("")
         setSelectedImage(null)
         setImpressionDetailsEnabled(true)
         setShowOpposingWarning("yes")
+        setStatus("Active")
       }
       setImageFile(null)
       setLinkToProductsOpen(false)
       setLinkToGroupOpen(false)
       setErrors({})
     }
-  }, [isOpen, impression, mode, generateNextImpressionCode])
+  }, [isOpen, impression, mode, isCopying])
 
   // Image validation
   const validateImage = (file: File): string | null => {
@@ -151,6 +109,27 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
       reader.onload = () => resolve(reader.result as string)
       reader.onerror = error => reject(error)
     })
+  }
+
+  // Convert image URL to base64
+  const urlToBase64 = async (url: string): Promise<string> => {
+    try {
+      const response = await fetch(url)
+      const blob = await response.blob()
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.readAsDataURL(blob)
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = error => reject(error)
+      })
+    } catch (error) {
+      throw new Error("Failed to convert image URL to base64")
+    }
+  }
+
+  // Check if string is base64 data URL
+  const isBase64 = (str: string | null): boolean => {
+    return str !== null && str.startsWith("data:image/")
   }
 
   // Handle file selection
@@ -239,14 +218,26 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
       return
     }
 
+    // When updating, ensure image is in base64 format
+    let imageToSend: string | undefined = selectedImage || undefined
+    if (mode === "edit" && imageToSend && !isBase64(imageToSend)) {
+      try {
+        imageToSend = await urlToBase64(imageToSend)
+      } catch (error) {
+        console.error("Error converting image to base64:", error)
+        setErrors(prev => ({ ...prev, image: "Failed to process image" }))
+        return
+      }
+    }
+
     const payload = {
       name: impressionName.trim(),
       code: impressionCode.trim(),
       sequence: 1,
       url: impressionUrl.trim() || undefined,
-      image: selectedImage || undefined,
+      image: imageToSend,
       is_digital_impression: showOpposingWarning === "yes" ? "Yes" : "No",
-      status: "Active",
+      status: status,
     }
 
     try {
@@ -261,6 +252,7 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
       setImpressionUrl("")
       setSelectedImage(null)
       setImageFile(null)
+      setStatus("Active")
       setErrors({})
       onClose()
     } catch (error) {
@@ -269,18 +261,19 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
   }
 
   return (
+    <>
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="p-0 gap-0 w-[95vw] max-w-[500px] max-h-[90vh] flex flex-col overflow-hidden bg-white rounded-md">
-        <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0">
-          <DialogTitle className="text-lg font-bold">
-            {mode === "edit" ? "Edit Impression" : "Create Impression"}
+      <DialogContent className="p-0 gap-0 w-[95vw] sm:w-[90vw] md:w-[85vw] max-w-[700px] max-h-[90vh] flex flex-col overflow-hidden bg-white rounded-md">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b flex-shrink-0">
+          <DialogTitle className="text-base sm:text-lg font-bold">
+            {isCopying ? "Copy Impression" : mode === "edit" ? "Edit Impression" : "Create Impression"}
           </DialogTitle>
           <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
             <X className="h-4 w-4" />
           </Button>
         </div>
 
-        <div className="overflow-y-auto flex-1 p-4 space-y-4">
+        <div className="overflow-y-auto flex-1 p-4 sm:p-6 space-y-4">
           {/* Impression Details Section */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -297,139 +290,170 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
           </div>
 
           {impressionDetailsEnabled && (
-            <div className="space-y-3">
-              <div>
-                <Input
-                  placeholder="Impression Name *"
-                  className={`h-10 ${errors.impressionName ? "border-red-500" : ""}`}
-                  value={impressionName}
-                  onChange={(e) => {
-                    setImpressionName(e.target.value)
-                    if (errors.impressionName) {
-                      setErrors((prev) => ({ ...prev, impressionName: "" }))
-                    }
-                  }}
-                  required
-                />
-                {errors.impressionName && <p className="text-red-500 text-xs mt-1">{errors.impressionName}</p>}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <Input
-                    placeholder="Code *"
-                    className={`h-10 ${errors.impressionCode ? "border-red-500" : ""}`}
-                    value={impressionCode}
-                    onChange={(e) => {
-                      setImpressionCode(e.target.value)
-                      if (errors.impressionCode) {
-                        setErrors((prev) => ({ ...prev, impressionCode: "" }))
-                      }
-                    }}
-                    required
-                  />
-                  {errors.impressionCode && <p className="text-red-500 text-xs mt-1">{errors.impressionCode}</p>}
-                </div>
-                <div>
-                  <Input
-                    placeholder={mode === "create" ? "URL *" : "URL"}
-                    className={`h-10 ${errors.impressionUrl ? "border-red-500" : ""}`}
-                    value={impressionUrl}
-                    onChange={(e) => {
-                      setImpressionUrl(e.target.value)
-                      if (errors.impressionUrl) {
-                        setErrors((prev) => ({ ...prev, impressionUrl: "" }))
-                      }
-                    }}
-                    required={mode === "create"}
-                  />
-                  {errors.impressionUrl && <p className="text-red-500 text-xs mt-1">{errors.impressionUrl}</p>}
-                </div>
-              </div>
-
-              {/* Image Upload Section */}
-              <div className="mt-3">
-                <p className="mb-2 text-sm font-medium">Impression Image</p>
-                {selectedImage ? (
-                  <div className="relative">
-                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-3">
-                      <img
-                        src={selectedImage}
-                        alt="Selected impression"
-                        className="w-full h-32 object-contain rounded"
-                      />
-                      <div className="absolute top-1 right-1">
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          onClick={removeImage}
-                          className="h-6 w-6 p-0"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {imageFile?.name} ({(imageFile?.size || 0 / 1024 / 1024).toFixed(2)} MB)
-                    </p>
-                  </div>
-                ) : (
+            <div className="space-y-4">
+              {/* Image Upload Section - Moved to top left */}
+              <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 lg:gap-8">
+                <div className="flex flex-col items-center sm:items-start gap-3">
                   <div
-                    className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
-                      isDragOver
-                        ? "border-[#1162a8] bg-blue-50"
-                        : "border-gray-300 hover:border-gray-400"
+                    className={`flex items-center justify-center border-2 border-dashed border-gray-300 rounded-xl p-4 sm:p-6 h-[120px] w-[120px] sm:h-[140px] sm:w-[140px] bg-gradient-to-br from-gray-50 to-gray-100 hover:border-gray-400 hover:bg-gradient-to-br hover:from-gray-100 hover:to-gray-200 transition-all duration-200 cursor-pointer group ${
+                      isDragOver ? "border-[#1162a8] bg-blue-50" : ""
                     }`}
+                    onClick={() => fileInputRef.current?.click()}
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
-                    onClick={() => fileInputRef.current?.click()}
                   >
-                    <Upload className="h-6 w-6 mx-auto mb-1 text-gray-400" />
-                    <p className="text-xs text-gray-600 mb-1">
-                      Drag and drop an image here, or click to select
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      PNG, JPG, GIF, WebP up to 5MB
-                    </p>
+                    {selectedImage ? (
+                      <img
+                        src={selectedImage}
+                        alt="Preview"
+                        className="object-cover h-full w-full rounded-xl"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center text-gray-500 group-hover:text-gray-600">
+                        <i className="fas fa-cloud-upload-alt text-3xl mb-2"></i>
+                        <span className="text-xs font-medium">Upload Image</span>
+                      </div>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      ref={fileInputRef}
+                      style={{ display: "none" }}
+                      onChange={handleFileInputChange}
+                    />
                   </div>
-                )}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileInputChange}
-                  className="hidden"
-                />
-                {errors.image && <p className="text-red-500 text-xs mt-1">{errors.image}</p>}
-              </div>
-
-              <div className="mt-3">
-                <p className="mb-2 text-sm font-medium">Show opposing warning scan?</p>
-                <div className="flex space-x-4">
-                  <div className="flex items-center">
-                    <div
-                      className={`w-4 h-4 rounded-full border-2 ${
-                        showOpposingWarning === "yes" ? "border-[#1162a8]" : "border-gray-300"
-                      } flex items-center justify-center cursor-pointer`}
-                      onClick={() => setShowOpposingWarning("yes")}
+                  <span className="text-xs text-gray-500 text-center max-w-[140px]">
+                    Click to upload impression image
+                  </span>
+                  <div className="flex gap-2 mt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      type="button"
+                      onClick={() => {
+                        if (selectedImage) {
+                          setShowPreviewModal(true)
+                        }
+                      }}
+                      disabled={!selectedImage}
                     >
-                      {showOpposingWarning === "yes" && <div className="w-2 h-2 rounded-full bg-[#1162a8]"></div>}
-                    </div>
-                    <span className="ml-2 text-sm">Yes</span>
+                      Preview Image
+                    </Button>
+                    {selectedImage && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        type="button"
+                        onClick={removeImage}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                  {errors.image && <p className="text-red-500 text-xs mt-1">{errors.image}</p>}
+                </div>
+                
+                {/* Form fields on the right */}
+                <div className="flex-1 space-y-4">
+                  <div>
+                    <Input
+                      placeholder="Impression Name *"
+                      className={`h-10 ${errors.impressionName ? "border-red-500" : ""}`}
+                      value={impressionName}
+                      onChange={(e) => {
+                        const newName = e.target.value
+                        setImpressionName(newName)
+                        // Auto-generate code from name
+                        const generatedCode = generateCodeFromName(newName)
+                        if (generatedCode) {
+                          setImpressionCode(generatedCode)
+                        }
+                        if (errors.impressionName) {
+                          setErrors((prev) => ({ ...prev, impressionName: "" }))
+                        }
+                      }}
+                      required
+                    />
+                    {errors.impressionName && <p className="text-red-500 text-xs mt-1">{errors.impressionName}</p>}
                   </div>
 
-                  <div className="flex items-center">
-                    <div
-                      className={`w-4 h-4 rounded-full border-2 ${
-                        showOpposingWarning === "no" ? "border-[#1162a8]" : "border-gray-300"
-                      } flex items-center justify-center cursor-pointer`}
-                      onClick={() => setShowOpposingWarning("no")}
-                    >
-                      {showOpposingWarning === "no" && <div className="w-2 h-2 rounded-full bg-[#1162a8]"></div>}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <Input
+                        placeholder="Code *"
+                        className={`h-10 ${errors.impressionCode ? "border-red-500" : ""}`}
+                        value={impressionCode}
+                        onChange={(e) => {
+                          setImpressionCode(e.target.value)
+                          if (errors.impressionCode) {
+                            setErrors((prev) => ({ ...prev, impressionCode: "" }))
+                          }
+                        }}
+                        required
+                      />
+                      {errors.impressionCode && <p className="text-red-500 text-xs mt-1">{errors.impressionCode}</p>}
                     </div>
-                    <span className="ml-2 text-sm">No</span>
+                    <div>
+                      <Input
+                        placeholder={mode === "create" ? "URL *" : "URL"}
+                        className={`h-10 ${errors.impressionUrl ? "border-red-500" : ""}`}
+                        value={impressionUrl}
+                        onChange={(e) => {
+                          setImpressionUrl(e.target.value)
+                          if (errors.impressionUrl) {
+                            setErrors((prev) => ({ ...prev, impressionUrl: "" }))
+                          }
+                        }}
+                        required={mode === "create"}
+                      />
+                      {errors.impressionUrl && <p className="text-red-500 text-xs mt-1">{errors.impressionUrl}</p>}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="mb-2 text-sm font-medium">Show opposing warning scan?</p>
+                    <div className="flex space-x-4">
+                      <div className="flex items-center">
+                        <div
+                          className={`w-4 h-4 rounded-full border-2 ${
+                            showOpposingWarning === "yes" ? "border-[#1162a8]" : "border-gray-300"
+                          } flex items-center justify-center cursor-pointer`}
+                          onClick={() => setShowOpposingWarning("yes")}
+                        >
+                          {showOpposingWarning === "yes" && <div className="w-2 h-2 rounded-full bg-[#1162a8]"></div>}
+                        </div>
+                        <span className="ml-2 text-sm">Yes</span>
+                      </div>
+
+                      <div className="flex items-center">
+                        <div
+                          className={`w-4 h-4 rounded-full border-2 ${
+                            showOpposingWarning === "no" ? "border-[#1162a8]" : "border-gray-300"
+                          } flex items-center justify-center cursor-pointer`}
+                          onClick={() => setShowOpposingWarning("no")}
+                        >
+                          {showOpposingWarning === "no" && <div className="w-2 h-2 rounded-full bg-[#1162a8]"></div>}
+                        </div>
+                        <span className="ml-2 text-sm">No</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Status *
+                    </label>
+                    <Select value={status} onValueChange={setStatus}>
+                      <SelectTrigger className="h-10">
+                        <SelectValue placeholder="Select Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Active">Active</SelectItem>
+                        <SelectItem value="Inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>
@@ -438,12 +462,12 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
         </div>
 
         {/* Footer with action buttons */}
-        <div className="px-4 py-3 flex justify-end gap-2 border-t flex-shrink-0 bg-white">
-          <Button variant="destructive" onClick={onClose} className="bg-red-600 hover:bg-red-700 h-9 px-4">
+        <div className="px-4 sm:px-6 py-3 flex flex-col sm:flex-row justify-end gap-2 border-t flex-shrink-0 bg-white">
+          <Button variant="destructive" onClick={onClose} className="bg-red-600 hover:bg-red-700 h-9 px-4 w-full sm:w-auto">
             Cancel
           </Button>
           <Button
-            className="bg-[#1162a8] h-9 px-4"
+            className="bg-[#1162a8] h-9 px-4 w-full sm:w-auto"
             onClick={handleSubmit}
             disabled={
               isLoading ||
@@ -455,11 +479,45 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
             }
           >
             {isLoading
-              ? (mode === "edit" ? "Saving..." : "Saving...")
-              : (mode === "edit" ? "Save Changes" : "Save Impression")}
+              ? (isCopying ? "Copying..." : mode === "edit" ? "Saving..." : "Saving...")
+              : (isCopying ? "Copy Impression" : mode === "edit" ? "Save Changes" : "Save Impression")}
           </Button>
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Image Preview Modal */}
+    <Dialog open={showPreviewModal} onOpenChange={setShowPreviewModal}>
+      <DialogContent
+        className="flex flex-col items-center justify-center p-0"
+        style={{
+          width: "100vw",
+          height: "100vh",
+          maxWidth: "100vw",
+          maxHeight: "100vh",
+          borderRadius: 0,
+          boxShadow: "none",
+        }}
+      >
+        <div className="relative w-full h-full flex items-center justify-center bg-black bg-opacity-90">
+          {selectedImage && (
+            <img
+              src={selectedImage}
+              alt="Impression Preview"
+              className="max-w-full max-h-full object-contain"
+            />
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowPreviewModal(false)}
+            className="absolute top-4 right-4 text-white hover:bg-white hover:bg-opacity-20"
+          >
+            <X className="h-6 w-6" />
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }

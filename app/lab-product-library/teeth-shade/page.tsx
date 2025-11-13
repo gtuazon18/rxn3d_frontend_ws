@@ -44,6 +44,7 @@ export default function TeethShadePage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false)
   const [editingTeethShadeBrand, setEditingTeethShadeBrand] = useState<any>(null)
+  const [isCopying, setIsCopying] = useState(false)
 
   // Discard dialog states
   const [showDiscardDialog, setShowDiscardDialog] = useState(false)
@@ -145,7 +146,15 @@ export default function TeethShadePage() {
   // Handle edit
   const handleEdit = (brand: any) => {
     setEditingTeethShadeBrand(brand)
+    setIsCopying(false)
     setIsEditModalOpen(true)
+  }
+
+  // Handle copy
+  const handleCopy = (brand: any) => {
+    setEditingTeethShadeBrand(brand)
+    setIsCopying(true)
+    setIsCreateModalOpen(true)
   }
 
   // Handle save after editing
@@ -412,6 +421,7 @@ export default function TeethShadePage() {
                             variant="ghost"
                             size="sm"
                             className="h-8 w-8 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                            onClick={() => handleCopy(brand)}
                             title={t("Duplicate")}
                           >
                             <Copy className="h-4 w-4" />
@@ -516,17 +526,24 @@ export default function TeethShadePage() {
       {/* Create Teeth Shade Modal */}
       <CreateTeethShadeModal
         isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
+        onClose={() => {
+          setIsCreateModalOpen(false)
+          setEditingTeethShadeBrand(null)
+          setIsCopying(false)
+        }}
         onHasChangesChange={setHasModalChanges}
+        teethShadeBrand={isCopying ? editingTeethShadeBrand : undefined}
+        isCopying={isCopying}
       />
 
       {/* Edit Teeth Shade Modal */}
-      {editingTeethShadeBrand && (
+      {editingTeethShadeBrand && !isCopying && (
         <CreateTeethShadeModal
           isOpen={isEditModalOpen}
           onClose={() => {
             setIsEditModalOpen(false)
             setEditingTeethShadeBrand(null)
+            setIsCopying(false)
           }}
           onHasChangesChange={setHasModalChanges}
           teethShadeBrand={editingTeethShadeBrand}

@@ -6,10 +6,11 @@ import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, ChevronUp, ChevronDown, Edit, TrashIcon, Copy, Plus, Package } from 'lucide-react'
+import { Search, ChevronUp, ChevronDown, Edit, TrashIcon, Copy, Plus, Package, Link } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CreateRetentionModal } from "@/components/product-management/create-retention-modal"
 import { DeleteRetentionModal } from "@/components/product-management/delete-retention-modal"
+import { LinkProductsModal } from "@/components/product-management/link-products-modal"
 import { useRetention } from "@/contexts/product-retention-context"
 import { useLanguage } from "@/contexts/language-context"
 import { useAuth } from "@/contexts/auth-context"
@@ -28,8 +29,10 @@ export default function RetentionPage() {
   const [entriesPerPage, setEntriesPerPage] = useState("10")
   const [currentPage, setCurrentPage] = useState(1)
   const [editRetention, setEditRetention] = useState<any | null>(null)
+  const [isCopying, setIsCopying] = useState(false)
   const [deleteRetentionId, setDeleteRetentionId] = useState<number | null>(null)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [isLinkProductsModalOpen, setIsLinkProductsModalOpen] = useState(false)
   const { currentLanguage } = useLanguage()
   const { user } = useAuth()
   const { t } = useTranslation()
@@ -93,6 +96,13 @@ export default function RetentionPage() {
 
   function handleEdit(retention: any): void {
     setEditRetention(retention)
+    setIsCopying(false)
+    setShowCreateModal(true)
+  }
+
+  function handleCopy(retention: any): void {
+    setEditRetention(retention)
+    setIsCopying(true)
     setShowCreateModal(true)
   }
 
@@ -159,6 +169,13 @@ export default function RetentionPage() {
         </div>
 
         <div className="flex gap-3">
+          <Button
+            className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
+            onClick={() => setIsLinkProductsModalOpen(true)}
+          >
+            <Link className="h-4 w-4 mr-2" />
+            Link Products
+          </Button>
           <Button
             onClick={() => setShowCreateModal(true)}
             className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
@@ -292,7 +309,12 @@ export default function RetentionPage() {
                       >
                         <TrashIcon className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-50">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-8 w-8 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                        onClick={() => handleCopy(retention)}
+                      >
                         <Copy className="h-4 w-4" />
                       </Button>
                     </div>
@@ -386,13 +408,24 @@ export default function RetentionPage() {
         onClose={() => {
           setShowCreateModal(false)
           setEditRetention(null)
+          setIsCopying(false)
         }}
         retention={editRetention}
+        isCopying={isCopying}
       />
       <DeleteRetentionModal
         isOpen={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
         onConfirm={confirmDelete}
+      />
+      <LinkProductsModal
+        isOpen={isLinkProductsModalOpen}
+        onClose={() => setIsLinkProductsModalOpen(false)}
+        entityType="retention"
+        context="lab"
+        onApply={() => {
+          setIsLinkProductsModalOpen(false)
+        }}
       />
     </div>
   )

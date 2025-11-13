@@ -15,6 +15,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useGrades, type GradePayload, type Grade } from "@/contexts/product-grades-context"
 import { DiscardChangesDialog } from "./discard-changes-dialog"
+import { generateCodeFromName } from "@/lib/utils"
 
 interface CreateGradeModalProps {
   isOpen: boolean
@@ -23,9 +24,10 @@ interface CreateGradeModalProps {
   editId?: number // Add editId prop for fetching grade details
   onSave?: (data: Partial<GradePayload>) => Promise<void>
   role?: string // Add role prop
+  isCopying?: boolean // Flag to indicate if we're copying a grade
 }
 
-export function CreateGradeModal({ isOpen, onClose, editingGrade, editId, onSave, role }: CreateGradeModalProps) {
+export function CreateGradeModal({ isOpen, onClose, editingGrade, editId, onSave, role, isCopying = false }: CreateGradeModalProps) {
   const { createGrade, fetchGradeDetail, isLoading } = useGrades()
 
   const defaultFormData = {
@@ -61,7 +63,8 @@ export function CreateGradeModal({ isOpen, onClose, editingGrade, editId, onSave
 
   // Fetch grade details when editing with editId
   useEffect(() => {
-    if (isOpen && editId && !editingGrade) {
+    if (isOpen && editId && !editingGrade && !isCopying) {
+      // Editing: fetch detail from API
       setIsDetailLoading(true)
       fetchGradeDetail(editId).then((gradeDetail) => {
         if (gradeDetail) {
@@ -89,8 +92,31 @@ export function CreateGradeModal({ isOpen, onClose, editingGrade, editId, onSave
         }
         setIsDetailLoading(false)
       })
-    } else if (isOpen && editingGrade) {
-      // Use provided editingGrade if available
+    } else if (isOpen && editingGrade && isCopying) {
+      // Copying: use the provided editingGrade data directly (no API call needed)
+      setFetchedGrade(editingGrade)
+      setFormData({
+        name: editingGrade.name || "",
+        code: editingGrade.code || "",
+        sequence: editingGrade.sequence?.toString() || "",
+        status: editingGrade.status || "Active",
+      })
+      setInitialFormData({
+        name: editingGrade.name || "",
+        code: editingGrade.code || "",
+        sequence: editingGrade.sequence?.toString() || "",
+        status: editingGrade.status || "Active",
+      })
+      // Set image if available
+      if (editingGrade.image_url) {
+        setImageBase64(editingGrade.image_url)
+        setImagePreview(editingGrade.image_url)
+      } else {
+        setImageBase64(null)
+        setImagePreview(null)
+      }
+    } else if (isOpen && editingGrade && !isCopying) {
+      // Editing: Use provided editingGrade if available
       setFetchedGrade(editingGrade)
       setFormData({
         name: editingGrade.name || "",
@@ -113,7 +139,7 @@ export function CreateGradeModal({ isOpen, onClose, editingGrade, editId, onSave
         setImagePreview(null)
       }
     }
-  }, [isOpen, editId, editingGrade, fetchGradeDetail])
+  }, [isOpen, editId, editingGrade, fetchGradeDetail, isCopying])
 
   // Reset image when modal opens/closes
   useEffect(() => {
@@ -148,10 +174,20 @@ export function CreateGradeModal({ isOpen, onClose, editingGrade, editId, onSave
   }, [formData, initialFormData])
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }))
+    setFormData((prev) => {
+      const updated = {
+        ...prev,
+        [field]: value,
+      }
+      // Auto-generate code from name when name changes
+      if (field === "name") {
+        const generatedCode = generateCodeFromName(value)
+        if (generatedCode) {
+          updated.code = generatedCode
+        }
+      }
+      return updated
+    })
   }
 
   const handleAttemptClose = () => {
@@ -225,11 +261,13 @@ export function CreateGradeModal({ isOpen, onClose, editingGrade, editId, onSave
         ...(imageBase64 && { image: imageBase64 }),
       }
 
-      if ((editingGrade || fetchedGrade) && onSave) {
+      // If copying, always create a new grade (not update)
+      if ((editingGrade || fetchedGrade) && onSave && !isCopying) {
         await onSave(payload)
         setHasChanges(false)
         onClose()
       } else {
+        // Create new grade (either new or copy)
         const success = await createGrade(payload)
         if (success) {
           setHasChanges(false)
@@ -411,8 +449,8 @@ export function CreateGradeModal({ isOpen, onClose, editingGrade, editId, onSave
               className="bg-[#1162a8] hover:bg-[#0d4d87] disabled:opacity-50"
             >
               {isLoading 
-                ? ((editingGrade || fetchedGrade) ? "Saving..." : "Creating...") 
-                : ((editingGrade || fetchedGrade) ? "Save Changes" : "Save Grade")}
+                ? (isCopying ? "Copying..." : (editingGrade || fetchedGrade) ? "Saving..." : "Creating...") 
+                : (isCopying ? "Copy Grade" : (editingGrade || fetchedGrade) ? "Save Changes" : "Save Grade")}
             </Button>
           </div>
         </DialogContent>

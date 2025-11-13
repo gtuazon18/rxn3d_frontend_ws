@@ -26,6 +26,7 @@ interface CreateTeethShadeModalProps {
   teethShadeBrand?: any // for edit mode
   isEditing?: boolean
   onSave?: (payload: any) => void
+  isCopying?: boolean // Flag to indicate if we're copying a teeth shade
 }
 
 export function CreateTeethShadeModal({
@@ -35,6 +36,7 @@ export function CreateTeethShadeModal({
   teethShadeBrand,
   isEditing,
   onSave,
+  isCopying = false,
 }: CreateTeethShadeModalProps) {
   const { createTeethShadeBrand, isLoading, fetchAvailableShades, createCustomShade, teethShadeBrands } =
     useTeethShades()
@@ -82,8 +84,34 @@ export function CreateTeethShadeModal({
   // Reset form and initial state when modal opens or editing
   useEffect(() => {
     if (isOpen) {
-      if (isEditing && teethShadeBrand) {
-        // Populate form for editing
+      if (isCopying && teethShadeBrand) {
+        // Copying: use the provided teethShadeBrand data directly (no API call needed)
+        setFormData({
+          name: teethShadeBrand.name || "",
+          system_name: teethShadeBrand.system_name || "",
+          sequence: teethShadeBrand.sequence?.toString() || "",
+          status: teethShadeBrand.status || "Active",
+          shades: (teethShadeBrand.shades || []).map((shade: any) => ({
+            name: shade.name,
+            sequence: shade.sequence,
+            status: shade.status,
+            enabled: shade.status === "Active",
+          })),
+        })
+        setInitialFormData({
+          name: teethShadeBrand.name || "",
+          system_name: teethShadeBrand.system_name || "",
+          sequence: teethShadeBrand.sequence?.toString() || "",
+          status: teethShadeBrand.status || "Active",
+          shades: (teethShadeBrand.shades || []).map((shade: any) => ({
+            name: shade.name,
+            sequence: shade.sequence,
+            status: shade.status,
+            enabled: shade.status === "Active",
+          })),
+        })
+      } else if (isEditing && teethShadeBrand && !isCopying) {
+        // Editing: populate form for editing
         setFormData({
           name: teethShadeBrand.name || "",
           system_name: teethShadeBrand.system_name || "",
@@ -109,6 +137,7 @@ export function CreateTeethShadeModal({
           })),
         })
       } else {
+        // New teeth shade: reset form
         setFormData(defaultFormData)
         setInitialFormData(defaultFormData)
       }
@@ -122,7 +151,7 @@ export function CreateTeethShadeModal({
       setNewShadeName("")
       setSelectedBrandForCustomShade("")
     }
-  }, [isOpen, isEditing, teethShadeBrand, onHasChangesChange])
+  }, [isOpen, isEditing, teethShadeBrand, isCopying, onHasChangesChange])
 
   // Fetch available shades when modal opens
   useEffect(() => {
@@ -317,9 +346,11 @@ export function CreateTeethShadeModal({
     }
 
     try {
-      if (isEditing && onSave) {
+      // If copying, always create a new teeth shade (not update)
+      if (isEditing && onSave && !isCopying) {
         await onSave(payload)
       } else {
+        // Create new teeth shade (either new or copy)
         const success = await createTeethShadeBrand(payload)
         if (success) {
           setHasChanges(false)
@@ -346,7 +377,7 @@ export function CreateTeethShadeModal({
         <DialogContent className="p-0 gap-0 sm:max-w-[600px] overflow-hidden bg-white rounded-md">
           <DialogHeader className="flex flex-row items-center justify-between px-6 py-4 border-b">
             <DialogTitle className="text-xl font-bold">
-              {isEditing ? "Edit Teeth Shade System" : "Create Teeth Shade System"}
+              {isCopying ? "Copy Teeth Shade System" : isEditing ? "Edit Teeth Shade System" : "Create Teeth Shade System"}
             </DialogTitle>
             <Button variant="ghost" size="icon" onClick={handleAttemptClose} className="h-8 w-8">
               <X className="h-5 w-5" />
@@ -525,7 +556,7 @@ export function CreateTeethShadeModal({
               disabled={!isFormValid || isLoading}
               className="bg-[#1162a8] hover:bg-[#0d4d87] disabled:opacity-50"
             >
-              {isLoading ? (isEditing ? "Saving..." : "Saving...") : isEditing ? "Save Changes" : "Save Teeth Shade"}
+              {isLoading ? (isCopying ? "Copying..." : isEditing ? "Saving..." : "Saving...") : (isCopying ? "Copy Teeth Shade" : isEditing ? "Save Changes" : "Save Teeth Shade")}
             </Button>
           </div>
         </DialogContent>

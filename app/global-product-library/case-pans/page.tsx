@@ -36,6 +36,7 @@ export default function CasePansPage() {
   const [entriesPerPage, setEntriesPerPage] = useState("25")
   const [isAddCasePanModalOpen, setIsAddCasePanModalOpen] = useState(false)
   const [editingCasePan, setEditingCasePan] = useState<any>(null)
+  const [isCopying, setIsCopying] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [casePanToDelete, setCasePanToDelete] = useState<any>(null)
@@ -135,6 +136,17 @@ export default function CasePansPage() {
     const casePan = casePans.find((cp) => cp.id === id)
     if (casePan) {
       setEditingCasePan(casePan)
+      setIsCopying(false)
+      setIsAddCasePanModalOpen(true)
+    }
+  }
+
+  function handleCopy(id: any): void {
+    const casePan = casePans.find((cp) => cp.id === id)
+    if (casePan) {
+      console.log("Copying case pan:", casePan)
+      setEditingCasePan(casePan)
+      setIsCopying(true)
       setIsAddCasePanModalOpen(true)
     }
   }
@@ -374,6 +386,7 @@ export default function CasePansPage() {
                         variant="ghost"
                         size="sm"
                         className="h-8 w-8 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                        onClick={() => handleCopy(casePan.id)}
                         title={t("Duplicate")}
                       >
                         <Copy className="h-4 w-4" />
@@ -475,11 +488,14 @@ export default function CasePansPage() {
         onClose={() => {
           setIsAddCasePanModalOpen(false)
           setEditingCasePan(null)
+          setIsCopying(false)
         }}
         editCasePan={editingCasePan}
+        isCopying={isCopying}
         onEditDone={() => {
           setIsAddCasePanModalOpen(false)
           setEditingCasePan(null)
+          setIsCopying(false)
         }}
       />
       

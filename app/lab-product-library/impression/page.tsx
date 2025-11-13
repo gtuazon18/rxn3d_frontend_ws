@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search, ArrowUp, ArrowDown, Info, Edit, TrashIcon, Copy, Plus, Package } from "lucide-react"
+import { Search, ArrowUp, ArrowDown, Info, Edit, TrashIcon, Copy, Plus, Package, Link } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { CreateImpressionModal } from "@/components/product-management/create-impression-modal"
 import { CreateImpressionGroupModal } from "@/components/product-management/create-impression-group-modal"
+import { LinkProductsModal } from "@/components/product-management/link-products-modal"
 import { DiscardChangesDialog } from "@/components/product-management/discard-changes-dialog"
 import { Impression, useImpressions } from "@/contexts/product-impression-context"
 import { useLanguage } from "@/contexts/language-context"
@@ -42,10 +43,12 @@ export default function ImpressionPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [isCreateImpressionModalOpen, setIsCreateImpressionModalOpen] = useState(false)
   const [isCreateImpressionGroupModalOpen, setIsCreateImpressionGroupModalOpen] = useState(false)
+  const [isLinkProductsModalOpen, setIsLinkProductsModalOpen] = useState(false)
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false)
   const [discardType, setDiscardType] = useState<"impression" | "group">("impression")
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [editingImpression, setEditingImpression] = useState<Impression | null>(null)
+  const [isCopying, setIsCopying] = useState(false)
   const { currentLanguage } = useLanguage()
 
   useEffect(() => {
@@ -140,6 +143,13 @@ export default function ImpressionPage() {
 
   function handleEdit(impression: Impression): void {
     setEditingImpression(impression)
+    setIsCopying(false)
+    setIsCreateImpressionModalOpen(true)
+  }
+
+  function handleCopy(impression: Impression): void {
+    setEditingImpression(impression)
+    setIsCopying(true)
     setIsCreateImpressionModalOpen(true)
   }
 
@@ -207,6 +217,14 @@ export default function ImpressionPage() {
         </div>
         
         <div className="flex gap-3">
+          <Button
+            className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
+            onClick={() => setIsLinkProductsModalOpen(true)}
+          >
+            <Link className="h-4 w-4 mr-2" />
+            Link Products
+          </Button>
+
           <Button
             className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
             onClick={handleOpenCreateImpressionModal}
@@ -313,7 +331,12 @@ export default function ImpressionPage() {
                           >
                             <TrashIcon className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-50">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-8 w-8 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                            onClick={() => handleCopy(impression)}
+                          >
                             <Copy className="h-4 w-4" />
                           </Button>
                         </div>
@@ -408,16 +431,28 @@ export default function ImpressionPage() {
         onClose={() => {
           setIsCreateImpressionModalOpen(false)
           setEditingImpression(null)
+          setIsCopying(false)
         }}
         onChanges={(hasChanges) => setHasUnsavedChanges(hasChanges)}
         impression={editingImpression}
-        mode={editingImpression ? "edit" : "create"}
+        mode={editingImpression && !isCopying ? "edit" : "create"}
+        isCopying={isCopying}
       />
 
       <CreateImpressionGroupModal
         isOpen={isCreateImpressionGroupModalOpen}
         onClose={() => handleCloseWithCheck("group")}
         onChanges={(hasChanges) => setHasUnsavedChanges(hasChanges)}
+      />
+
+      <LinkProductsModal
+        isOpen={isLinkProductsModalOpen}
+        onClose={() => setIsLinkProductsModalOpen(false)}
+        entityType="impression"
+        context="lab"
+        onApply={() => {
+          setIsLinkProductsModalOpen(false)
+        }}
       />
 
       <DiscardChangesDialog

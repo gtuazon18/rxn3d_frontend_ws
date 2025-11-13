@@ -56,6 +56,7 @@ export default function CasePansPage() {
 
   const [entriesPerPage, setEntriesPerPage] = useState("25")
   const [isAddCasePanModalOpen, setIsAddCasePanModalOpen] = useState(false)
+  const [isCopying, setIsCopying] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const { currentLanguage } = useLanguage()
   const { t } = useTranslation();
@@ -189,6 +190,13 @@ export default function CasePansPage() {
   // Handle edit (open modal, set edit id)
   function handleEdit(id: number): void {
     setEditCasePanId(id)
+    setIsCopying(false)
+    setIsAddCasePanModalOpen(true)
+  }
+
+  function handleCopy(id: number): void {
+    setEditCasePanId(id)
+    setIsCopying(true)
     setIsAddCasePanModalOpen(true)
   }
 
@@ -412,6 +420,7 @@ export default function CasePansPage() {
                         variant="ghost"
                         size="sm"
                         className="h-8 w-8 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                        onClick={() => handleCopy(casePan.id)}
                         title={t("Duplicate")}
                       >
                         <Copy className="h-4 w-4" />
@@ -511,9 +520,18 @@ export default function CasePansPage() {
 
       <AddCasePanModal
         isOpen={isAddCasePanModalOpen}
-        onClose={handleModalClose}
+        onClose={() => {
+          setEditCasePanId(null)
+          setIsCopying(false)
+          setIsAddCasePanModalOpen(false)
+        }}
         editCasePan={editCasePan || undefined}
-        onEditDone={handleModalClose}
+        isCopying={isCopying}
+        onEditDone={() => {
+          setEditCasePanId(null)
+          setIsCopying(false)
+          setIsAddCasePanModalOpen(false)
+        }}
       />
       
       {/* Loading Overlay when modal is open and loading details */}

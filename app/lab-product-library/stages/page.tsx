@@ -48,6 +48,7 @@ export default function StagesPage() {
   const [isLinkProductsModalOpen, setIsLinkProductsModalOpen] = useState(false)
   const [isModalDirty, setIsModalDirty] = useState(false)
   const [editingStage, setEditingStage] = useState<Stage | null>(null)
+  const [isCopying, setIsCopying] = useState(false)
 
   const [searchInput, setSearchInput] = useState(contextSearchQuery)
   const [entriesPerPage, setEntriesPerPage] = useState(pagination.per_page.toString())
@@ -137,6 +138,13 @@ export default function StagesPage() {
 
   function handleEdit(stage: Stage): void {
     setEditingStage(stage)
+    setIsCopying(false)
+    setIsCreateStageModalOpen(true)
+  }
+
+  function handleCopy(stage: Stage): void {
+    setEditingStage(stage)
+    setIsCopying(true)
     setIsCreateStageModalOpen(true)
   }
   async function handleDelete(id: number): Promise<void> {
@@ -365,7 +373,12 @@ export default function StagesPage() {
                           >
                             <TrashIcon className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-50">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-8 w-8 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                            onClick={() => handleCopy(stage)}
+                          >
                             <Copy className="h-4 w-4" />
                           </Button>
                         </div>
@@ -439,10 +452,12 @@ export default function StagesPage() {
         onClose={() => {
           setIsCreateStageModalOpen(false)
           setEditingStage(null)
+          setIsCopying(false)
         }}
         onHasChangesChange={setIsModalDirty}
         stage={editingStage}
-        mode={editingStage ? "edit" : "create"}
+        mode={editingStage && !isCopying ? "edit" : "create"}
+        isCopying={isCopying}
       />
       <CreateStageGroupModal
         isOpen={isCreateStageGroupModalOpen}

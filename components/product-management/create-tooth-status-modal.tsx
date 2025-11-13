@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { X, Maximize2, Info } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
@@ -15,6 +15,7 @@ import { z } from "zod"
 import { useTranslation } from "react-i18next"
 import { useExtractionForm } from "@/hooks/use-extractions"
 import { CreateExtractionSchema } from "@/lib/schemas"
+import { generateCodeFromName } from "@/lib/utils"
 
 // Use the CreateExtractionSchema from schemas.ts
 type ToothStatusForm = z.infer<typeof CreateExtractionSchema> & {
@@ -36,6 +37,32 @@ interface CreateToothStatusModalProps {
   onChanges: (hasChanges: boolean) => void
   toothStatus?: ToothStatus | null
   mode: "create" | "edit"
+  isCopying?: boolean // Flag to indicate if we're copying a tooth status
+}
+
+// Color map for predefined colors (matching case pan modal pattern)
+const colorMapDropdown: Record<string, string> = {
+  blue: "bg-[#1162a8] text-white",
+  red: "bg-[#cf0202] text-white",
+  white: "bg-[#ffffff] text-black",
+  green: "bg-[#11a85d] text-white",
+  purple: "bg-[#a81180] text-white",
+  orange: "bg-[#f6be2c] text-black",
+  teal: "bg-[#119ba8] text-white",
+}
+
+// Helper function to get hex color from color name
+const getHexColor = (colorName: string): string => {
+  const colorMap: Record<string, string> = {
+    blue: "#1162a8",
+    red: "#cf0202",
+    white: "#ffffff",
+    green: "#11a85d",
+    purple: "#a81180",
+    orange: "#f6be2c",
+    teal: "#119ba8",
+  }
+  return colorMap[colorName] || "#1162a8"
 }
 
 export function CreateToothStatusModal({
@@ -44,10 +71,12 @@ export function CreateToothStatusModal({
   onChanges,
   toothStatus,
   mode,
+  isCopying = false,
 }: CreateToothStatusModalProps) {
   const [isMaximized, setIsMaximized] = useState(false)
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false)
   const { t } = useTranslation()
+  const previousToothStatusIdRef = useRef<number | undefined>(undefined)
 
   // Use the extractions API hooks
   const { createExtraction, updateExtraction, isCreating, isUpdating } = useExtractionForm()
@@ -76,37 +105,51 @@ export function CreateToothStatusModal({
   const watchedColor = watch("color")
   const watchedName = watch("name")
 
-  // Auto-generate code when name changes
+  // Auto-generate code when name changes (only in create mode)
   useEffect(() => {
     if (watchedName && mode === "create") {
-      const generatedCode = watchedName
-        .toUpperCase()
-        .replace(/[^A-Z0-9\s]/g, '') // Remove special characters
-        .replace(/\s+/g, '_') // Replace spaces with underscores
-        .substring(0, 10) // Limit to 10 characters
-      setValue("code", generatedCode, { shouldDirty: true })
+      const generatedCode = generateCodeFromName(watchedName)
+      if (generatedCode) {
+        setValue("code", generatedCode, { shouldDirty: true })
+      }
     }
   }, [watchedName, setValue, mode])
 
   useEffect(() => {
-    if (isOpen && toothStatus) {
-      reset({
-        name: toothStatus.name,
-        description: toothStatus.description || "",
-        code: toothStatus.name.toUpperCase().replace(/\s+/g, '_').substring(0, 10), // Generate code from name
-        color: toothStatus.color,
-        sequence: 1,
-        status: toothStatus.active ? "Active" : "Inactive",
-      })
-    } else if (isOpen && !toothStatus) {
-      reset({
-        name: "",
-        description: "",
-        code: "",
-        color: "#F5E6D3",
-        sequence: 1,
-        status: "Active",
-      })
+    // Only reset when modal opens or when toothStatus ID changes
+    const currentId = toothStatus?.id
+    const shouldReset = isOpen && (
+      !previousToothStatusIdRef.current || // First time opening
+      previousToothStatusIdRef.current !== currentId || // Different tooth status
+      (!toothStatus && previousToothStatusIdRef.current !== undefined) // Switching from edit to create
+    )
+
+    if (shouldReset) {
+      if (toothStatus) {
+        reset({
+          name: toothStatus.name,
+          description: toothStatus.description || "",
+          code: toothStatus.name ? generateCodeFromName(toothStatus.name) : "",
+          color: toothStatus.color,
+          sequence: 1,
+          status: toothStatus.active ? "Active" : "Inactive",
+        })
+      } else {
+        reset({
+          name: "",
+          description: "",
+          code: "",
+          color: "#F5E6D3",
+          sequence: 1,
+          status: "Active",
+        })
+      }
+      previousToothStatusIdRef.current = currentId
+    }
+
+    // Reset ref when modal closes
+    if (!isOpen) {
+      previousToothStatusIdRef.current = undefined
     }
   }, [isOpen, toothStatus, reset])
 
@@ -182,17 +225,6 @@ export function CreateToothStatusModal({
     }
   }
 
-  const predefinedColors = [
-    "#F5E6D3", // Light beige
-    "#D3D3D3", // Light gray
-    "#FF6B6B", // Red
-    "#808080", // Dark gray
-    "#90EE90", // Light green
-    "#FFB6C1", // Light pink
-    "#D2B48C", // Light brown
-    "#ADD8E6", // Light blue
-  ]
-
   const handleColorChange = useCallback((color: string) => {
     setValue("color", color, { shouldDirty: true })
   }, [setValue])
@@ -200,14 +232,14 @@ export function CreateToothStatusModal({
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent
-        className={`p-0 gap-0 transition-all duration-300 ease-in-out overflow-hidden ${
+        className={`p-0 gap-0 transition-all duration-300 ease-in-out overflow-hidden flex flex-col ${
           isMaximized 
             ? "w-[95vw] h-[95vh] max-w-[95vw] max-h-[95vh]" 
-            : "w-full max-w-[600px] max-h-[90vh]"
+            : "w-[95vw] sm:w-[90vw] md:w-[85vw] max-w-[600px] h-[90vh] max-h-[90vh]"
         } bg-white`}
       >
-        <DialogHeader className="px-6 py-4 flex flex-row items-center justify-between border-b bg-white sticky top-0 z-10">
-          <DialogTitle className="text-xl font-medium">
+        <DialogHeader className="px-4 sm:px-6 py-3 sm:py-4 flex flex-row items-center justify-between border-b bg-white flex-shrink-0">
+          <DialogTitle className="text-base sm:text-lg md:text-xl font-medium">
             {mode === "edit" ? "Edit tooth status" : "Create tooth status"}
           </DialogTitle>
           <div className="flex items-center gap-2">
@@ -232,14 +264,14 @@ export function CreateToothStatusModal({
           </div>
         </DialogHeader>
         
-        <div className={`${isMaximized ? "overflow-y-auto" : "overflow-y-auto max-h-[calc(90vh-80px)]"}`}>
-          <form onSubmit={handleSubmit(onSubmit)}>
-            <div className="px-6 py-6 space-y-6">
+        <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+          <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col h-full min-h-0">
+            <div className="px-4 sm:px-6 py-3 sm:py-4 space-y-3 sm:space-y-4 flex-1 overflow-y-auto">
               {/* Tooth Status Details Section */}
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-medium">Tooth Status details</h3>
+                    <h3 className="text-base sm:text-lg font-medium">Tooth Status details</h3>
                     <Info className="h-4 w-4 text-gray-400" />
                   </div>
                   <Switch
@@ -249,7 +281,7 @@ export function CreateToothStatusModal({
                   />
                 </div>
 
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Tooth status name
@@ -301,7 +333,7 @@ export function CreateToothStatusModal({
                     <Textarea
                       {...register("description")}
                       placeholder="Enter your description. This description will appear as a tooltip for the tooth status."
-                      className="w-full min-h-[100px]"
+                      className="w-full min-h-[80px] sm:min-h-[100px] resize-none"
                     />
                   </div>
 
@@ -309,18 +341,17 @@ export function CreateToothStatusModal({
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Assign color
                     </label>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                       <ColorPicker
-                        value={watchedColor}
+                        value={watchedColor?.startsWith('#') ? watchedColor : getHexColor(watchedColor)}
                         onChange={handleColorChange}
-                        predefinedColors={predefinedColors}
+                        predefinedColors={Object.keys(colorMapDropdown).map(colorName => getHexColor(colorName))}
                       />
-                      <Input
-                        {...register("color")}
-                        value={watchedColor}
-                        className="w-32"
-                        readOnly
-                      />
+                      {watchedColor && (
+                        <span className="text-sm text-gray-600">
+                          {watchedColor}
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -344,17 +375,18 @@ export function CreateToothStatusModal({
             </div>
 
             {/* Footer */}
-            <div className="px-6 py-4 flex justify-end gap-3 border-t mt-4 bg-white sticky bottom-0">
+            <div className="px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 border-t bg-white flex-shrink-0 mt-auto">
               <Button
                 variant="destructive"
                 type="button" 
                 onClick={handleClose}
+                className="w-full sm:w-auto"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                className="bg-[#1162a8] h-10 hover:bg-[#0d4d87]"
+                className="bg-[#1162a8] h-10 hover:bg-[#0d4d87] w-full sm:w-auto"
                 disabled={isCreating || isUpdating}
               >
                 {isCreating || isUpdating ? (

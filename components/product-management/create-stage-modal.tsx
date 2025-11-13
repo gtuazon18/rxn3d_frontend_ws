@@ -26,7 +26,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { useStages, type StagePayload, type Stage, type StageVariation } from "@/contexts/product-stages-context" 
 import { DiscardChangesDialog } from "./discard-changes-dialog" 
 import { useAuth } from "@/contexts/auth-context"
-import { getAuthToken } from "@/lib/auth-utils"
+import { generateCodeFromName } from "@/lib/utils"
 import {
   getStageVariations,
   createStageVariation,
@@ -44,6 +44,7 @@ interface CreateStageModalProps {
   onHasChangesChange?: (hasChanges: boolean) => void 
   stage?: Stage | null
   mode?: "create" | "edit"
+  isCopying?: boolean // Flag to indicate if we're copying a stage
 }
 
 const defaultFormData: StagePayload = {
@@ -68,7 +69,7 @@ const defaultFormData: StagePayload = {
   },
 }
 
-export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, mode = "create" }: CreateStageModalProps) {
+export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, mode = "create", isCopying = false }: CreateStageModalProps) {
   const { createStage, updateStage, isLoading: isContextLoading } = useStages()
   const { user } = useAuth()
 
@@ -109,62 +110,6 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
   const variationFileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
 
-  // Generate next available stage code starting with ST
-  const generateNextStageCode = useCallback(async (): Promise<string> => {
-    try {
-      const token = getAuthToken()
-      const customerId = localStorage.getItem("customerId")
-      
-      // Fetch stages to find the highest ST code
-      const params = new URLSearchParams({
-        per_page: "1000",
-      })
-      if (customerId) {
-        params.append("customer_id", customerId)
-      }
-
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL}/library/stages?${params.toString()}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      )
-
-      if (!response.ok) {
-        // If fetch fails, start with ST0001
-        return "ST0001"
-      }
-
-      const result = await response.json()
-      const allStages = result.data?.data || result.data || []
-
-      // Extract all numeric parts from existing codes that start with "ST"
-      const existingCodes = allStages
-        .map((s: Stage) => s.code)
-        .filter((code: string) => code && code.toUpperCase().startsWith("ST"))
-        .map((code: string) => {
-          // Extract numeric part after "ST"
-          const match = code.toUpperCase().match(/^ST(\d+)$/)
-          return match ? parseInt(match[1], 10) : 0
-        })
-        .filter((num: number) => num > 0)
-
-      // Find the highest number
-      const maxNumber = existingCodes.length > 0 ? Math.max(...existingCodes) : 0
-
-      // Generate next number (pad with zeros to 4 digits)
-      const nextNumber = maxNumber + 1
-      return `ST${nextNumber.toString().padStart(4, "0")}`
-    } catch (error) {
-      console.error("Failed to generate stage code:", error)
-      // Fallback to ST0001 if there's an error
-      return "ST0001"
-    }
-  }, [])
 
   // Initialize image when editing
   useEffect(() => {
@@ -365,7 +310,52 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
 
   useEffect(() => {
     if (isOpen) {
-      if (mode === "edit" && stage) {
+      if (isCopying && stage) {
+        // Copying: use the provided stage data directly (no API call needed)
+        setFormData({
+          name: stage.name || "",
+          code: stage.code || "",
+          status: stage.status || "Active",
+          is_common: stage.is_common || "Yes",
+          sequence: stage.sequence || 0,
+          days_to_pickup: stage.days_to_pickup || 0,
+          days_to_process: stage.days_to_process || 0,
+          days_to_deliver: stage.days_to_deliver || 0,
+          is_releasing_stage: stage.is_releasing_stage || "No",
+          is_stage_with_addons: stage.is_stage_with_addons || "No",
+          price: stage.price !== undefined ? stage.price : (stage.lab_stage?.price ? Number(stage.lab_stage.price) : 0),
+          stage_configurations: stage.stage_configurations || {
+            grade: "No",
+            material: "No",
+            gum_shade: "No",
+            retention: "No",
+            impression: "No",
+            teeth_shade: "No",
+          },
+        })
+        setInitialFormData({
+          name: stage.name || "",
+          code: stage.code || "",
+          status: stage.status || "Active",
+          is_common: stage.is_common || "Yes",
+          sequence: stage.sequence || 0,
+          days_to_pickup: stage.days_to_pickup || 0,
+          days_to_process: stage.days_to_process || 0,
+          days_to_deliver: stage.days_to_deliver || 0,
+          is_releasing_stage: stage.is_releasing_stage || "No",
+          is_stage_with_addons: stage.is_stage_with_addons || "No",
+          price: stage.price !== undefined ? stage.price : (stage.lab_stage?.price ? Number(stage.lab_stage.price) : 0),
+          stage_configurations: stage.stage_configurations || {
+            grade: "No",
+            material: "No",
+            gum_shade: "No",
+            retention: "No",
+            impression: "No",
+            teeth_shade: "No",
+          },
+        })
+      } else if (mode === "edit" && stage && !isCopying) {
+        // Editing: use the provided stage data
         setFormData({
           name: stage.name || "",
           code: stage.code || "",
@@ -409,12 +399,9 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
           },
         })
       } else {
-        // Generate auto code for new stage
-        generateNextStageCode().then((autoCode) => {
-          const newFormData = { ...defaultFormData, code: autoCode }
-          setFormData(newFormData)
-          setInitialFormData(newFormData)
-        })
+        // New stage: reset to default form data (code will be generated from name)
+        setFormData(defaultFormData)
+        setInitialFormData(defaultFormData)
       }
       setHasChanges(false)
       if (onHasChangesChange) onHasChangesChange(false)
@@ -425,7 +412,7 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
       setLinkToGroupOpen(false)
       setVisibilityManagementOpen(false)
     }
-  }, [isOpen, onHasChangesChange, mode, stage, generateNextStageCode])
+  }, [isOpen, onHasChangesChange, mode, stage, isCopying])
 
   useEffect(() => {
     const changed = JSON.stringify(formData) !== JSON.stringify(initialFormData)
@@ -439,7 +426,17 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
     field: keyof StagePayload,
     value: string | number | "Yes" | "No" | "Active" | "Inactive",
   ) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
+    setFormData((prev) => {
+      const updated = { ...prev, [field]: value }
+      // Auto-generate code from name when name changes
+      if (field === "name" && typeof value === "string") {
+        const generatedCode = generateCodeFromName(value)
+        if (generatedCode) {
+          updated.code = generatedCode
+        }
+      }
+      return updated
+    })
   }
 
   const handleNumberInputChange = (field: keyof StagePayload, value: string) => {
@@ -546,7 +543,8 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
     let success = false
     let savedStageId: number | null = null
     
-    if (mode === "edit" && stage) {
+    // If copying, always create a new stage (not update)
+    if (mode === "edit" && stage && !isCopying) {
       const changedFields: Partial<StagePayload> = {}
       Object.keys(payload).forEach((key) => {
         if ((payload as any)[key] !== (initialFormData as any)[key]) {
@@ -602,7 +600,7 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
         <DialogContent className="p-0 gap-0 sm:max-w-[700px] lg:max-w-[800px] xl:max-w-[900px] overflow-hidden bg-white rounded-md">
           <DialogHeader className="flex flex-row items-center justify-between px-6 py-4 border-b">
             <DialogTitle className="text-xl font-bold">
-              {mode === "edit" ? "Edit Stage" : "Create Stage"}
+              {isCopying ? "Copy Stage" : mode === "edit" ? "Edit Stage" : "Create Stage"}
             </DialogTitle>
             <Button variant="ghost" size="icon" onClick={handleAttemptClose} className="h-8 w-8">
               <X className="h-5 w-5" />
@@ -1082,8 +1080,8 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
               className="bg-[#1162a8] hover:bg-[#0d4d87]"
             >
               {isContextLoading
-                ? (mode === "edit" ? "Updating..." : "Creating...")
-                : (mode === "edit" ? "Update Stage" : "Save Stage")}
+                ? (isCopying ? "Copying..." : mode === "edit" ? "Updating..." : "Creating...")
+                : (isCopying ? "Copy Stage" : mode === "edit" ? "Update Stage" : "Save Stage")}
             </Button>
           </DialogFooter>
         </DialogContent>

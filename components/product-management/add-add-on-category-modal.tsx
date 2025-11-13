@@ -12,6 +12,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAddOns, type AddOn } from "@/contexts/product-add-on-category-context"
 import { DiscardChangesDialog } from "./discard-changes-dialog"
+import { generateCodeFromName } from "@/lib/utils"
 
 interface AddAddOnModalProps {
   isOpen: boolean
@@ -19,9 +20,10 @@ interface AddAddOnModalProps {
   onHasChangesChange: (hasChanges: boolean) => void
   addOn?: AddOn | null
   isEditing?: boolean
+  isCopying?: boolean // Flag to indicate if we're copying an add-on category
 }
 
-export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, addOn, isEditing = false }: AddAddOnModalProps) {
+export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, addOn, isEditing = false, isCopying = false }: AddAddOnModalProps) {
   const {
     addOnCategoriesForSelect,
     fetchAddOnCategoriesForSelect,
@@ -60,7 +62,23 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
   // Reset form when modal opens
   useEffect(() => {
     if (isOpen) {
-      if (addOn && isEditing) {
+      if (isCopying && addOn) {
+        // Copying: use the provided addOn data directly (no API call needed)
+        const copyData = {
+          name: addOn.name,
+          code: addOn.code || "",
+          price: addOn.price?.toString() || "",
+          type: addOn.type || "Both",
+          status: addOn.status,
+          sequence: addOn.sequence?.toString() || "",
+          subcategory_id: addOn.subcategory_id?.toString() || "",
+          createNewSubCategory: false,
+          parentCategoryId: "",
+        }
+        setFormData(copyData)
+        setInitialFormData(copyData)
+      } else if (addOn && isEditing && !isCopying) {
+        // Editing: use the provided addOn data
         const editData = {
           name: addOn.name,
           code: addOn.code || "",
@@ -75,6 +93,7 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
         setFormData(editData)
         setInitialFormData(editData)
       } else {
+        // New add-on: reset form
         setFormData(defaultFormData)
         setInitialFormData(defaultFormData)
       }
@@ -85,7 +104,7 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
       setLinkToExistingGroupOpen(false)
       setVisibilityManagementOpen(false)
     }
-  }, [isOpen, addOn, isEditing, onHasChangesChange])
+  }, [isOpen, addOn, isEditing, isCopying, onHasChangesChange])
 
   // Fetch categories when modal opens
   useEffect(() => {
@@ -104,10 +123,20 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
   }, [formData, initialFormData, onHasChangesChange])
 
   const handleInputChange = (field: keyof typeof formData, value: string | boolean) => {
-    setFormData((prev) => ({
-      ...prev,
-      [field]: value,
-    }))
+    setFormData((prev) => {
+      const updated = {
+        ...prev,
+        [field]: value,
+      }
+      // Auto-generate code from name when name changes
+      if (field === "name" && typeof value === "string") {
+        const generatedCode = generateCodeFromName(value)
+        if (generatedCode) {
+          updated.code = generatedCode
+        }
+      }
+      return updated
+    })
   }
 
   // Get all subcategories for direct selection
@@ -182,9 +211,11 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
 
     try {
       let success = false
-      if (isEditing && addOn) {
+      // If copying, always create a new add-on (not update)
+      if (isEditing && addOn && !isCopying) {
         success = !!(await updateAddOn(addOn.id, payload))
       } else {
+        // Create new add-on (either new or copy)
         success = !!(await createAddOn(payload))
       }
 
@@ -206,7 +237,7 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
       <Dialog open={isOpen} onOpenChange={(open) => !open && handleAttemptClose()}>
         <DialogContent className="p-0 gap-0 sm:max-w-[600px] overflow-hidden bg-white rounded-md">
           <DialogHeader className="flex flex-row items-center justify-between px-6 py-4 border-b">
-            <DialogTitle className="text-xl font-bold">{isEditing ? "Edit Add-on Category" : "Create Add-on Category"}</DialogTitle>
+            <DialogTitle className="text-xl font-bold">{isCopying ? "Copy Add-on Category" : isEditing ? "Edit Add-on Category" : "Create Add-on Category"}</DialogTitle>
             <Button variant="ghost" size="icon" onClick={handleAttemptClose} className="h-8 w-8">
               <X className="h-5 w-5" />
             </Button>
@@ -265,7 +296,7 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
             )}
 
             {/* Link to Products Section */}
-            <Collapsible open={linkToProductsOpen} onOpenChange={setLinkToProductsOpen}>
+            {/* <Collapsible open={linkToProductsOpen} onOpenChange={setLinkToProductsOpen}>
               <CollapsibleTrigger className="flex items-center justify-between w-full border-t border-b py-4">
                 <div className="flex items-center gap-2">
                   <span className="font-medium">Link to Products</span>
@@ -276,10 +307,10 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
               <CollapsibleContent className="pt-4">
                 <p className="text-gray-600 mb-4">Select products to link this add-on to.</p>
               </CollapsibleContent>
-            </Collapsible>
+            </Collapsible> */}
 
             {/* Link to Existing Group Section */}
-            <Collapsible open={linkToExistingGroupOpen} onOpenChange={setLinkToExistingGroupOpen}>
+            {/* <Collapsible open={linkToExistingGroupOpen} onOpenChange={setLinkToExistingGroupOpen}>
               <CollapsibleTrigger className="flex items-center justify-between w-full border-t border-b py-4">
                 <div className="flex items-center gap-2">
                   <span className="font-medium">Link to Existing Group</span>
@@ -292,10 +323,10 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
               <CollapsibleContent className="pt-4">
                 <p className="text-gray-600 mb-4">Select groups to link this add-on to.</p>
               </CollapsibleContent>
-            </Collapsible>
+            </Collapsible> */}
 
             {/* Visibility Management Section */}
-            <Collapsible open={visibilityManagementOpen} onOpenChange={setVisibilityManagementOpen}>
+            {/* <Collapsible open={visibilityManagementOpen} onOpenChange={setVisibilityManagementOpen}>
               <CollapsibleTrigger className="flex items-center justify-between w-full border-t border-b py-4">
                 <div className="flex items-center gap-2">
                   <span className="font-medium">Visibility Management</span>
@@ -308,7 +339,7 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
               <CollapsibleContent className="pt-4">
                 <p className="text-gray-600 mb-4">Manage which labs can see this add-on.</p>
               </CollapsibleContent>
-            </Collapsible>
+            </Collapsible> */}
           </div>
 
           {/* Footer with action buttons */}
@@ -322,10 +353,12 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
               disabled={!isFormValid || showAnimation}
             >
               {showAnimation
-                ? "Saving..."
-                : isEditing
-                  ? "Update Add-on"
-                  : formData.createNewSubCategory
+                ? (isCopying ? "Copying..." : "Saving...")
+                : isCopying
+                    ? "Copy Add-on Category"
+                    : isEditing
+                      ? "Update Add-on"
+                      : formData.createNewSubCategory
                     ? "Create Sub-Category & Add-on"
                     : "Save Add-on Category"}
             </Button>

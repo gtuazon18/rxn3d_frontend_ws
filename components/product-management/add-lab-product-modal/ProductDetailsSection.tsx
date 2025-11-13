@@ -6,6 +6,7 @@ import { ValidationError } from "@/components/ui/validation-error"
 import { Info, AlertCircle } from "lucide-react"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { generateCodeFromName } from "@/lib/utils"
 
 type ProductDetailsSectionProps = {
   control: any
@@ -33,6 +34,7 @@ export function ProductDetailsSection({
   setValue,
 }: ProductDetailsSectionProps) {
   const grades = useWatch({ control, name: "grades" }) || []
+  const name = useWatch({ control, name: "name" }) || ""
   const defaultGrade = grades.find((g: any) => g.is_default === "Yes")
   const defaultGradePrice =
     defaultGrade && defaultGrade.price !== undefined && defaultGrade.price !== null && defaultGrade.price !== ""
@@ -58,6 +60,16 @@ export function ProductDetailsSection({
       setValue("base_price", defaultGradePrice, { shouldDirty: true, shouldValidate: true })
     }
   }, [defaultGradePrice, sections.grades, setValue])
+
+  // Auto-generate code from name when name changes
+  useEffect(() => {
+    if (name && setValue && typeof name === "string") {
+      const generatedCode = generateCodeFromName(name)
+      if (generatedCode) {
+        setValue("code", generatedCode, { shouldDirty: true })
+      }
+    }
+  }, [name, setValue])
 
   const handleImageClick = () => {
     fileInputRef.current?.click()

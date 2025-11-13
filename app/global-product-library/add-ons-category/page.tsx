@@ -30,6 +30,9 @@ export default function AddOnsCategoryPage() {
     setSelectedItems,
     fetchAddOns,
     deleteAddOn,
+    addOnCategoriesForSelect,
+    fetchAddOnCategoriesForSelect,
+    isLoadingCategoriesForSelect,
   } = useAddOns()
 
   // Modal states
@@ -44,6 +47,9 @@ export default function AddOnsCategoryPage() {
   const [entriesPerPage, setEntriesPerPage] = useState(addOnPagination?.per_page?.toString() || "10")
   const [currentPage, setCurrentPage] = useState(addOnPagination?.current_page || 1)
 
+  // Category selection state
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null)
+
   const [searchInput, setSearchInput] = useState(searchQuery)
   const { currentLanguage } = useLanguage()
   const { t } = useTranslation()
@@ -54,9 +60,15 @@ export default function AddOnsCategoryPage() {
   const [isBulkDelete, setIsBulkDelete] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
 
+  // Fetch all categories for the vertical tabs
+  useEffect(() => {
+    fetchAddOnCategoriesForSelect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentLanguage])
+
   // Fetch add-ons when language changes
   useEffect(() => {
-    fetchAddOns(currentPage, Number(entriesPerPage))
+    fetchAddOns(currentPage, Number(entriesPerPage), searchQuery, sortColumn, sortDirection)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentLanguage])
 
@@ -93,11 +105,11 @@ export default function AddOnsCategoryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery])
 
-  // Fetch add-ons when pagination or search changes
+  // Fetch add-ons when pagination, search, or sort changes
   useEffect(() => {
-    fetchAddOns(currentPage, Number(entriesPerPage))
+    fetchAddOns(currentPage, Number(entriesPerPage), searchQuery, sortColumn, sortDirection)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, entriesPerPage, searchQuery, currentLanguage])
+  }, [currentPage, entriesPerPage, searchQuery, sortColumn, sortDirection, currentLanguage])
 
   const handlePageChange = (page: number) => {
     if (addOnPagination && page >= 1 && page <= addOnPagination.last_page) {
@@ -134,7 +146,13 @@ export default function AddOnsCategoryPage() {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedItems(addOns.map((addOn) => addOn.id))
+      if (selectedCategoryId) {
+        // Select all subcategories
+        setSelectedItems(displayData.map((item: any) => item.id))
+      } else {
+        // Select all categories
+        setSelectedItems(displayData.map((addOn: any) => addOn.id))
+      }
     } else {
       setSelectedItems([])
     }
@@ -147,6 +165,23 @@ export default function AddOnsCategoryPage() {
       setSelectedItems((prev) => prev.filter((id) => id !== itemId))
     }
   }
+
+  const handleCategorySelect = (categoryId: number | null) => {
+    setSelectedCategoryId(categoryId)
+    setSelectedItems([]) // Clear selection when switching categories
+    setCurrentPage(1) // Reset to first page
+  }
+
+  // Get the data to display in the table
+  const displayData = selectedCategoryId
+    ? (() => {
+        const selectedCategory = addOns.find((cat: any) => cat.id === selectedCategoryId)
+        return selectedCategory?.subcategories || []
+      })()
+    : addOns
+
+  // Get the loading state
+  const isTableLoading = isLoadingAddOns
 
   const handleEdit = (addOn: any) => {
     setEditingAddOn(addOn)
@@ -187,9 +222,6 @@ export default function AddOnsCategoryPage() {
         <TableRow key={index}>
           <TableCell>
             <Skeleton className="h-4 w-4" />
-          </TableCell>
-          <TableCell>
-            <Skeleton className="h-4 w-32" />
           </TableCell>
           <TableCell>
             <Skeleton className="h-4 w-24" />
@@ -295,32 +327,131 @@ export default function AddOnsCategoryPage() {
         </div>
       )}
 
-      {/* Table Section */}
-      <div className="overflow-x-auto">
-        <Table>
+      {/* Main Content with Vertical Tabs */}
+      <div className="flex flex-row">
+        {/* Vertical Tabs for Categories */}
+        <div className="w-64 border-r border-gray-200 bg-gray-50 flex-shrink-0">
+          <div className="p-4 border-b border-gray-200">
+            <h2 className="text-sm font-semibold text-gray-900">{t("Categories", "Categories")}</h2>
+          </div>
+          <div className="overflow-y-auto max-h-[calc(100vh-300px)]">
+            {isLoadingCategoriesForSelect ? (
+              <div className="p-4 text-center">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#1162a8] mx-auto"></div>
+                <p className="text-xs text-gray-500 mt-2">{t("Loading categories...", "Loading categories...")}</p>
+              </div>
+            ) : (
+              <>
+                <button
+                  onClick={() => handleCategorySelect(null)}
+                  className={`w-full px-4 py-3 text-left text-sm font-medium transition-colors border-b border-gray-200 ${
+                    selectedCategoryId === null
+                      ? "bg-[#1162a8] text-white border-l-4 border-l-white"
+                      : "bg-white text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  {t("All Categories", "All Categories")}
+                </button>
+                {addOnCategoriesForSelect.map((category) => (
+                  <button
+                    key={category.id}
+                    onClick={() => handleCategorySelect(category.id)}
+                    className={`w-full px-4 py-3 text-left text-sm font-medium transition-colors border-b border-gray-200 ${
+                      selectedCategoryId === category.id
+                        ? "bg-[#1162a8] text-white border-l-4 border-l-white"
+                        : "bg-white text-gray-700 hover:bg-gray-100"
+                    }`}
+                  >
+                    {category.name}
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Table Section */}
+        <div className="flex-1 overflow-x-auto">
+        <Table className="w-full table-auto">
           <TableHeader>
             <TableRow className="bg-gray-50/80 hover:bg-gray-50">
               <TableHead className="w-12 pl-6">
                 <Checkbox
-                  checked={selectedItems.length === addOns.length && addOns.length > 0}
+                  checked={selectedItems.length === displayData.length && displayData.length > 0}
                   onCheckedChange={handleSelectAll}
                   className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
                 />
               </TableHead>
-              <TableHead className="font-semibold text-gray-900 text-center">{t("Add-on Category", "Add-on Category")}</TableHead>
-              <TableHead className="font-semibold text-gray-900 text-center">{t("Category Code", "Category Code")}</TableHead>
-              <TableHead className="font-semibold text-gray-900 text-center">{t("Add-on Sub Category", "Add-on Sub Category")}</TableHead>
-              <TableHead className="font-semibold text-gray-900 text-center">{t("Sub Category Code", "Sub Category Code")}</TableHead>
-              <TableHead className="font-semibold text-gray-900 text-center pr-6">{t("Actions")}</TableHead>
+              <TableHead className="font-semibold text-gray-900 text-left pl-6 min-w-[100px] whitespace-nowrap">{t("Category Code", "Category Code")}</TableHead>
+              <TableHead className="font-semibold text-gray-900 text-left min-w-[150px]">{t("Add-on Sub Category", "Add-on Sub Category")}</TableHead>
+              <TableHead className="font-semibold text-gray-900 text-left min-w-[120px] whitespace-nowrap">{t("Sub Category Code", "Sub Category Code")}</TableHead>
+              <TableHead className="font-semibold text-gray-900 text-left pr-6 w-24 whitespace-nowrap">{t("Actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoadingAddOns ? (
+            {isTableLoading ? (
               renderLoadingSkeleton()
-            ) : addOns.length > 0 ? (
-              addOns.map((category) =>
+            ) : selectedCategoryId ? (
+              // Show subcategories of selected category
+              displayData.length > 0 ? (
+                displayData.map((subcat: any) => {
+                  const parentCategory = addOns.find((cat: any) => cat.id === selectedCategoryId)
+                  return (
+                    <TableRow key={`sub-${subcat.id}`} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                      <TableCell className="pl-6">
+                        <Checkbox
+                          checked={selectedItems.includes(subcat.id)}
+                          onCheckedChange={(checked) => handleSelectItem(subcat.id, !!checked)}
+                          className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
+                        />
+                      </TableCell>
+                      <TableCell className="text-gray-600 text-left pl-6 whitespace-nowrap">{parentCategory?.code ? parentCategory.code : "--"}</TableCell>
+                      <TableCell className="font-medium text-gray-900 text-left">
+                        <span className="break-words" title={subcat.name || "--"}>
+                          {subcat.name ? subcat.name : "--"}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-gray-600 text-left whitespace-nowrap">{subcat.code ? subcat.code : "--"}</TableCell>
+                      <TableCell className="text-left pr-6">
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-[#1162a8] hover:bg-blue-50" onClick={() => handleEdit(parentCategory)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-gray-600 hover:text-red-600 hover:bg-red-50"
+                            onClick={() => parentCategory?.id && handleDelete(parentCategory.id)}
+                          >
+                            <TrashIcon className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-12">
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="p-4 bg-gray-100 rounded-full">
+                        <Package className="h-8 w-8 text-gray-400" />
+                      </div>
+                      <div className="text-center">
+                        <h3 className="font-medium text-gray-900 mb-1">{t("No sub-categories found", "No sub-categories found")}</h3>
+                        <p className="text-sm text-gray-500 mb-4">
+                          {t("This category has no sub-categories yet", "This category has no sub-categories yet")}
+                        </p>
+                      </div>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )
+            ) : displayData.length > 0 ? (
+              // Show all categories with subcategories
+              displayData.map((category: any) =>
                 category.subcategories && category.subcategories.length > 0 ? (
-                  category.subcategories.map((subcat, idx) => (
+                  category.subcategories.map((subcat: any, idx: number) => (
                     <TableRow key={`cat-${category.id}-sub-${subcat.id}`} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                       {idx === 0 ? (
                         <>
@@ -339,16 +470,7 @@ export default function AddOnsCategoryPage() {
                           </TableCell>
                           <TableCell
                             rowSpan={category.subcategories.length}
-                            className="font-medium text-gray-900 align-middle text-center"
-                            style={{ verticalAlign: "middle" }}
-                          >
-                            <div className="h-full flex flex-col justify-center">
-                              {category.name ? category.name : "--"}
-                            </div>
-                          </TableCell>
-                          <TableCell
-                            rowSpan={category.subcategories.length}
-                            className="text-gray-600 align-middle text-center"
+                            className="text-gray-600 align-middle text-left pl-6 whitespace-nowrap"
                             style={{ verticalAlign: "middle" }}
                           >
                             <div className="h-full flex flex-col justify-center">
@@ -357,10 +479,14 @@ export default function AddOnsCategoryPage() {
                           </TableCell>
                         </>
                       ) : null}
-                      <TableCell className="font-medium text-gray-900 text-center">{subcat.name ? subcat.name : "--"}</TableCell>
-                      <TableCell className="text-gray-600 text-center">{subcat.code ? subcat.code : "--"}</TableCell>
-                      <TableCell className="text-center pr-6">
-                        <div className="flex items-center justify-center gap-1">
+                      <TableCell className="font-medium text-gray-900 text-left">
+                        <span className="break-words" title={subcat.name || "--"}>
+                          {subcat.name ? subcat.name : "--"}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-gray-600 text-left whitespace-nowrap">{subcat.code ? subcat.code : "--"}</TableCell>
+                      <TableCell className="text-left pr-6">
+                        <div className="flex items-center gap-1">
                           <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-[#1162a8] hover:bg-blue-50" onClick={() => handleEdit(category)}>
                             <Edit className="h-4 w-4" />
                           </Button>
@@ -385,12 +511,11 @@ export default function AddOnsCategoryPage() {
                         className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
                       />
                     </TableCell>
-                    <TableCell className="font-medium text-gray-900 text-center">{category.name ? category.name : "--"}</TableCell>
-                    <TableCell className="text-gray-600 text-center">{category.code ? category.code : "--"}</TableCell>
-                    <TableCell className="text-center">{/* subcategory name */}--</TableCell>
-                    <TableCell className="text-center">{/* subcategory code */}--</TableCell>
-                    <TableCell className="text-center pr-6">
-                      <div className="flex items-center justify-center gap-1">
+                    <TableCell className="text-gray-600 text-left pl-6">{category.code ? category.code : "--"}</TableCell>
+                    <TableCell className="text-left">{/* subcategory name */}--</TableCell>
+                    <TableCell className="text-left">{/* subcategory code */}--</TableCell>
+                    <TableCell className="text-left pr-6">
+                      <div className="flex items-center gap-1">
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-[#1162a8] hover:bg-blue-50" onClick={() => handleEdit(category)}>
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -415,14 +540,21 @@ export default function AddOnsCategoryPage() {
                       <Package className="h-8 w-8 text-gray-400" />
                     </div>
                     <div className="text-center">
-                      <h3 className="font-medium text-gray-900 mb-1">{t("No add-ons found", "No add-ons found")}</h3>
+                      <h3 className="font-medium text-gray-900 mb-1">
+                        {selectedCategoryId 
+                          ? t("No sub-categories found", "No sub-categories found")
+                          : t("No add-ons found", "No add-ons found")
+                        }
+                      </h3>
                       <p className="text-sm text-gray-500 mb-4">
                         {searchQuery 
                           ? t("Try adjusting your search terms or filters")
+                          : selectedCategoryId
+                          ? t("This category has no sub-categories yet", "This category has no sub-categories yet")
                           : t("Get started by creating your first add-on")
                         }
                       </p>
-                      {!searchQuery && (
+                      {!searchQuery && !selectedCategoryId && (
                         <Button
                           className="bg-[#1162a8] hover:bg-[#0f5497] text-white"
                           onClick={() => setIsCreateModalOpen(true)}
@@ -438,10 +570,12 @@ export default function AddOnsCategoryPage() {
             )}
           </TableBody>
         </Table>
+        </div>
       </div>
 
-      {/* Pagination */}
-      <div className="px-6 py-4 flex justify-between items-center border-t border-gray-200">
+      {/* Pagination - Only show when viewing all categories, not subcategories */}
+      {!selectedCategoryId && addOnPagination && addOnPagination.total > 0 && (
+        <div className="px-6 py-4 flex justify-between items-center border-t border-gray-200">
         <div className="text-sm text-gray-600">
           {t("Showing")} {Math.min(addOnPagination?.total ?? 0, 1 + (currentPage - 1) * (addOnPagination?.per_page ?? 10))} {t("to")}{" "}
           {Math.min(addOnPagination?.total ?? 0, currentPage * (addOnPagination?.per_page ?? 10))} {t("of")} {addOnPagination?.total ?? 0} {t("entries")}
@@ -486,7 +620,17 @@ export default function AddOnsCategoryPage() {
             »
           </button>
         </div>
-      </div>
+        </div>
+      )}
+
+      {/* Show count for subcategories */}
+      {selectedCategoryId && displayData.length > 0 && (
+        <div className="px-6 py-4 flex justify-between items-center border-t border-gray-200">
+          <div className="text-sm text-gray-600">
+            {t("Showing")} {displayData.length} {t("sub-categories", "sub-categories")}
+          </div>
+        </div>
+      )}
 
       {/* Create Add-on Modal */}
       <AddAddOnCategoryModal

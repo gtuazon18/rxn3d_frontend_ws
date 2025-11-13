@@ -41,6 +41,7 @@ export default function GradesPage() {
 
   const [isCreateGradeModalOpen, setIsCreateGradeModalOpen] = useState(false)
   const [isCreateGradeGroupModalOpen, setIsCreateGradeGroupModalOpen] = useState(false)
+  const [isCopying, setIsCopying] = useState(false)
 
   const [isModalDirty, setIsModalDirty] = useState(false)
 
@@ -52,6 +53,7 @@ export default function GradesPage() {
   const { currentLanguage } = useLanguage()
 
   const [editingGradeId, setEditingGradeId] = useState<number | null>(null)
+  const [editingGrade, setEditingGrade] = useState<Grade | null>(null)
 
   useEffect(() => {
     fetchGrades()
@@ -144,6 +146,15 @@ export default function GradesPage() {
 
   function handleEdit(grade: Grade): void {
     setEditingGradeId(grade.id) // Use ID to fetch detailed grade info
+    setEditingGrade(grade)
+    setIsCopying(false)
+    setIsCreateGradeModalOpen(true)
+  }
+
+  function handleCopy(grade: Grade): void {
+    setEditingGradeId(null)
+    setEditingGrade(grade)
+    setIsCopying(true)
     setIsCreateGradeModalOpen(true)
   }
 
@@ -281,7 +292,10 @@ export default function GradesPage() {
             className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors"
             onClick={() => handleSort("status")}
             >
-            <div className="flex items-center"></div>
+            <div className="flex items-center">
+              Status 
+              {renderSortIndicator("status")}
+            </div>
                   </TableHead>
                   <TableHead className="font-semibold text-gray-900 text-center pr-6">
                     Actions
@@ -334,7 +348,12 @@ export default function GradesPage() {
                           >
                             <TrashIcon className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-50">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-8 w-8 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                            onClick={() => handleCopy(grade)}
+                          >
                             <Copy className="h-4 w-4" />
                           </Button>
                         </div>
@@ -430,10 +449,14 @@ export default function GradesPage() {
         onClose={() => {
           setIsCreateGradeModalOpen(false)
           setEditingGradeId(null)
+          setEditingGrade(null)
+          setIsCopying(false)
         }}
         editId={editingGradeId || undefined}
+        editingGrade={editingGrade || undefined}
+        isCopying={isCopying}
         onSave={async (data) => {
-          if (editingGradeId) {
+          if (editingGradeId && !isCopying) {
             await updateGrade(editingGradeId, data)
           }
         }}

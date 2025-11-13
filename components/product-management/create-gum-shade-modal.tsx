@@ -18,6 +18,7 @@ interface CreateGumShadeModalProps {
   onClose: () => void
   onChanges: (hasChanges: boolean) => void
   editingGumShade?: any
+  isCopying?: boolean // Flag to indicate if we're copying a gum shade
 }
 
 interface FormShade extends Omit<GumShade, "id" | "created_at" | "updated_at"> {
@@ -41,7 +42,7 @@ const defaultFormData: FormData = {
   shades: [],
 }
 
-export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShade }: CreateGumShadeModalProps) {
+export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShade, isCopying = false }: CreateGumShadeModalProps) {
   const {
     availableShades,
     isAvailableShadesLoading,
@@ -83,7 +84,20 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
   // Reset form when modal opens or editingGumShade changes
   useEffect(() => {
     if (isOpen) {
-      if (editingGumShade) {
+      if (isCopying && editingGumShade) {
+        // Copying: use the provided editingGumShade data directly (no API call needed)
+        setFormData({
+          name: editingGumShade.name || "",
+          systemName: editingGumShade.system_name || "",
+          sequence: editingGumShade.sequence?.toString() || "1",
+          status: editingGumShade.status || "Active",
+          shades: (editingGumShade.shades || []).map((shade: any) => ({
+            ...shade,
+            enabled: shade.status === "Active",
+          })),
+        })
+      } else if (editingGumShade && !isCopying) {
+        // Editing: use the provided editingGumShade data
         setFormData({
           name: editingGumShade.name || "",
           systemName: editingGumShade.system_name || "",
@@ -95,6 +109,7 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
           })),
         })
       } else {
+        // New gum shade: reset form
         setFormData(defaultFormData)
       }
       setNewShadeName("")
@@ -111,7 +126,7 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
         // This will be handled by the context, but we ensure data is available
       }
     }
-  }, [isOpen, editingGumShade])
+  }, [isOpen, editingGumShade, isCopying])
 
   // Handle input changes
   const handleInputChange = (field: keyof FormData, value: string) => {
@@ -282,10 +297,12 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
     }
 
     let success = false
-    if (editingGumShade) {
+    // If copying, always create a new gum shade (not update)
+    if (editingGumShade && !isCopying) {
       // Always send system_name, not systemName
       success = await updateGumShadeBrand(editingGumShade.id, payload)
     } else {
+      // Create new gum shade (either new or copy)
       success = await createGumShadeBrand(payload)
     }
 
@@ -320,7 +337,7 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
         <DialogContent className="p-0 gap-0 sm:max-w-[600px] max-w-[95vw] max-h-[95vh] flex flex-col overflow-hidden bg-white rounded-md">
           <DialogHeader className="flex flex-row items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b flex-shrink-0">
             <DialogTitle className="text-lg sm:text-xl font-bold">
-              {editingGumShade ? "Edit Gum Shade System" : "Create Gum Shade System"}
+              {isCopying ? "Copy Gum Shade System" : editingGumShade ? "Edit Gum Shade System" : "Create Gum Shade System"}
             </DialogTitle>
             <Button variant="ghost" size="icon" onClick={handleAttemptClose} className="h-8 w-8">
               <X className="h-5 w-5" />
@@ -503,7 +520,7 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
               className="bg-[#1162a8] hover:bg-[#0d4d87] w-full sm:w-auto" 
               disabled={!formData.name.trim()}
             >
-              {isLoading ? (editingGumShade ? "Updating..." : "Creating...") : (editingGumShade ? "Update Grade" : "Save Grade")}
+              {isLoading ? (isCopying ? "Copying..." : editingGumShade ? "Updating..." : "Creating...") : (isCopying ? "Copy Gum Shade" : editingGumShade ? "Update Gum Shade" : "Save Gum Shade")}
             </Button>
           </div>
         </DialogContent>

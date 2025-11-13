@@ -41,6 +41,7 @@ interface CreateToothStatusGroupModalProps {
   onChanges: (hasChanges: boolean) => void
   toothStatusGroup?: ToothStatusGroup | null
   mode?: "create" | "edit"
+  isCopying?: boolean // Flag to indicate if we're copying a tooth status group
 }
 
 export function CreateToothStatusGroupModal({
@@ -49,6 +50,7 @@ export function CreateToothStatusGroupModal({
   onChanges,
   toothStatusGroup,
   mode = "create",
+  isCopying = false,
 }: CreateToothStatusGroupModalProps) {
   const [isMaximized, setIsMaximized] = useState(false)
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false)

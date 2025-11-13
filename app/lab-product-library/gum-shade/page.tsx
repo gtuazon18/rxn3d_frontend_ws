@@ -47,6 +47,7 @@ export default function GumShadePage() {
   const [isCreateGumShadeModalOpen, setIsCreateGumShadeModalOpen] = useState(false)
   const [isCreateGumShadeGroupModalOpen, setIsCreateGumShadeGroupModalOpen] = useState(false)
   const [editingGumShade, setEditingGumShade] = useState<any>(null)
+  const [isCopying, setIsCopying] = useState(false)
 
   // Discard dialog states
   const [showPageLevelDiscardDialog, setShowPageLevelDiscardDialog] = useState(false)
@@ -67,7 +68,7 @@ export default function GumShadePage() {
   // Fetch when search, sort, or pagination changes
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      fetchGumShadeBrands(pagination.current_page, pagination.per_page, searchQuery, sortColumn, sortDirection)
+      fetchGumShadeBrands(pagination.current_page, pagination.per_page, searchQuery ?? undefined, sortColumn ?? undefined, sortDirection ?? undefined)
     }, 300)
 
     return () => clearTimeout(timeoutId)
@@ -129,6 +130,14 @@ export default function GumShadePage() {
   // Handle opening edit modal
   const handleEditGumShade = (gumShade: any) => {
     setEditingGumShade(gumShade)
+    setIsCopying(false)
+    setIsCreateGumShadeModalOpen(true)
+  }
+
+  // Handle opening copy modal
+  const handleCopyGumShade = (gumShade: any) => {
+    setEditingGumShade(gumShade)
+    setIsCopying(true)
     setIsCreateGumShadeModalOpen(true)
   }
 
@@ -149,9 +158,9 @@ export default function GumShadePage() {
         await fetchGumShadeBrands(
           1, // reset to first page after delete for consistency
           parseInt(entriesPerPage),
-          searchInput,
-          sortColumn,
-          sortDirection
+          searchInput ?? undefined,
+          sortColumn ?? undefined,
+          sortDirection ?? undefined
         )
         setCurrentPage(1)
       }
@@ -255,6 +264,13 @@ export default function GumShadePage() {
 
   function handleEdit(shade: GumShadeBrand): void {
     setEditingGumShade(shade)
+    setIsCopying(false)
+    setIsCreateGumShadeModalOpen(true)
+  }
+
+  function handleCopy(shade: GumShadeBrand): void {
+    setEditingGumShade(shade)
+    setIsCopying(true)
     setIsCreateGumShadeModalOpen(true)
   }
 
@@ -389,10 +405,21 @@ export default function GumShadePage() {
                       </TableCell>
                       <TableCell className="font-medium text-gray-900">{shade.name}</TableCell>
                       <TableCell className="text-gray-600">{(shade.system_name || "-").replace(/_/g, " ")}</TableCell>
-                      <TableCell className="text-gray-700">
-                        {shade.shades && shade.shades.length > 0
-                          ? shade.shades.map((shade) => shade.name).join(", ")
-                          : "N/A"}
+                      <TableCell className="text-gray-600">
+                        <div className="flex flex-wrap gap-1">
+                          {shade.shades && shade.shades.length > 0 ? (
+                            shade.shades.slice(0, 3).map((shadeItem, idx) => (
+                              <span key={idx} className="text-xs bg-gray-100 px-2 py-1 rounded">
+                                {shadeItem.name}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-xs text-gray-400">N/A</span>
+                          )}
+                          {shade.shades && shade.shades.length > 3 && (
+                            <span className="text-xs text-gray-500">+{shade.shades.length - 3} more</span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge
@@ -419,7 +446,12 @@ export default function GumShadePage() {
                           >
                             <TrashIcon className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-50">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="h-8 w-8 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                            onClick={() => handleCopy(shade)}
+                          >
                             <Copy className="h-4 w-4" />
                           </Button>
                         </div>
@@ -523,9 +555,11 @@ export default function GumShadePage() {
         onClose={() => {
           setIsCreateGumShadeModalOpen(false)
           setEditingGumShade(null)
+          setIsCopying(false)
         }}
         onChanges={setIsModalDirty}
         editingGumShade={editingGumShade}
+        isCopying={isCopying}
       />
 
       {/* Create Gum Shade Group Modal */}

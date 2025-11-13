@@ -5,9 +5,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Search, ChevronUp, ChevronDown, Copy, Info, TrashIcon, Edit, Plus, Package } from "lucide-react"
+import { Search, ChevronUp, ChevronDown, Copy, Info, TrashIcon, Edit, Plus, Package, Link } from "lucide-react"
 import { CreateMaterialModal } from "@/components/product-management/create-material-modal"
 import { CreateMaterialGroupModal } from "@/components/product-management/create-material-group-modal"
+import { LinkProductsModal } from "@/components/product-management/link-products-modal"
 import { useMaterials } from "@/contexts/product-materials-context"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -69,9 +70,11 @@ export default function MaterialPage() {
   const [selectedGroups, setSelectedGroups] = useState<string[]>([])
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false)
+  const [isLinkProductsModalOpen, setIsLinkProductsModalOpen] = useState(false)
   const [entriesPerPage, setEntriesPerPage] = useState("10")
   const [currentPage, setCurrentPage] = useState(1)
   const [editingMaterial, setEditingMaterial] = useState<any | null>(null)
+  const [isCopying, setIsCopying] = useState(false)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [materialToDelete, setMaterialToDelete] = useState<{ id: number | number[], name?: string } | null>(null)
   const { currentLanguage } = useLanguage()
@@ -303,6 +306,14 @@ export default function MaterialPage() {
         <div className="flex gap-3">
           <Button
             className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
+            onClick={() => setIsLinkProductsModalOpen(true)}
+          >
+            <Link className="h-4 w-4 mr-2" />
+            Link Products
+          </Button>
+
+          <Button
+            className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
             onClick={() => setShowCreateModal(true)}
           >
             <Plus className="h-4 w-4 mr-2" />
@@ -524,10 +535,21 @@ export default function MaterialPage() {
         onClose={() => {
           setShowCreateModal(false)
           setEditingMaterial(null)
+          setIsCopying(false)
         }}
         material={editingMaterial}
+        isCopying={isCopying}
       />
       <CreateMaterialGroupModal isOpen={showCreateGroupModal} onClose={() => setShowCreateGroupModal(false)} />
+      <LinkProductsModal
+        isOpen={isLinkProductsModalOpen}
+        onClose={() => setIsLinkProductsModalOpen(false)}
+        entityType="material"
+        context="lab"
+        onApply={() => {
+          setIsLinkProductsModalOpen(false)
+        }}
+      />
       <DeleteMaterialModal
         isOpen={deleteModalOpen}
         onClose={handleDeleteModalClose}
