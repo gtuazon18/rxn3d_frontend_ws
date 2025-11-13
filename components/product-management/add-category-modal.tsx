@@ -525,6 +525,7 @@ export function AddCategoryModal({ isOpen, onClose, editId, isEdit, isSubCategor
                             className="h-12 text-lg"
                             value={formData.name}
                             onChange={(e) => handleInputChange("name", e.target.value)}
+                            validationState={formData.name.trim() ? "valid" : "default"}
                             required
                             disabled={effectiveDisableFields}
                             readOnly={effectiveDisableFields}
@@ -540,6 +541,7 @@ export function AddCategoryModal({ isOpen, onClose, editId, isEdit, isSubCategor
                                 className="h-11"
                                 value={formData.code}
                                 onChange={(e) => handleInputChange("code", e.target.value)}
+                                validationState={formData.code.trim() ? "valid" : "default"}
                                 required
                                 disabled={effectiveDisableFields}
                                 readOnly={effectiveDisableFields}

@@ -175,6 +175,7 @@ export function AddVisibilityModal({ isOpen, onClose }: AddVisibilityModalProps)
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="pl-10 h-10"
+                      validationState={searchTerm.trim() ? "valid" : "default"}
                     />
                   </div>
 

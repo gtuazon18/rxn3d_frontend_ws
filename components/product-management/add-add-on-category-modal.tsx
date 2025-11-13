@@ -264,6 +264,7 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
                   className="h-12"
                   value={formData.name}
                   onChange={(e) => handleInputChange("name", e.target.value)}
+                  validationState={formData.name.trim() ? "valid" : "default"}
                   required
                 />
                 <Input
@@ -271,6 +272,7 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
                   className="h-12"
                   value={formData.code}
                   onChange={(e) => handleInputChange("code", e.target.value)}
+                  validationState={formData.code.trim() ? "valid" : "default"}
                 />
               
 
@@ -280,6 +282,7 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
                   className="h-12"
                   value={formData.sequence}
                   onChange={(e) => handleInputChange("sequence", e.target.value)}
+                  validationState={formData.sequence.trim() ? "valid" : "default"}
                 />
                 <Select value={formData.status} onValueChange={(value) => handleInputChange("status", value)}>
                   <SelectTrigger className="h-12">

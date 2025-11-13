@@ -366,12 +366,14 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
                     className="h-10 sm:h-12"
                     value={formData.name}
                     onChange={(e) => handleInputChange("name", e.target.value)}
+                    validationState={formData.name.trim() ? "valid" : "default"}
                   />
                   <Input
                     placeholder="Gum Shade System Name"
                     className="h-10 sm:h-12"
                     value={formData.systemName}
                     onChange={(e) => handleInputChange("systemName", e.target.value)}
+                    validationState={formData.systemName.trim() ? "valid" : "default"}
                   />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -381,6 +383,7 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
                     className="h-10 sm:h-12"
                     value={formData.sequence}
                     onChange={(e) => handleInputChange("sequence", e.target.value)}
+                    validationState={formData.sequence.trim() ? "valid" : "default"}
                   />
                   <Select value={formData.status} onValueChange={handleStatusChange}>
                     <SelectTrigger className="h-10 sm:h-12">
@@ -489,6 +492,7 @@ export function CreateGumShadeModal({ isOpen, onClose, onChanges, editingGumShad
                     <Input
                       placeholder="Add new shade"
                       value={newShadeName}
+                      validationState={newShadeName.trim() ? "valid" : "default"}
                       onChange={(e) => setNewShadeName(e.target.value)}
                       className="h-10 flex-1"
                     />

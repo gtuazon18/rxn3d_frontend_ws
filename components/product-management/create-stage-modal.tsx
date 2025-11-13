@@ -146,10 +146,14 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
 
   // Fetch variations when stage is set (edit mode) or when variations section is opened
   useEffect(() => {
-    if (isOpen && imageVariationsOpen && stage?.id) {
+    // Only fetch variations in edit mode with an existing stage ID
+    if (isOpen && imageVariationsOpen && mode === "edit" && stage?.id && !isCopying) {
       fetchVariations()
+    } else if (mode === "create" || isCopying) {
+      // Always clear variations when creating a new stage or copying
+      setVariations([])
     }
-  }, [isOpen, imageVariationsOpen, stage?.id, fetchVariations])
+  }, [isOpen, imageVariationsOpen, stage?.id, fetchVariations, mode, isCopying])
 
   // Handle create variation
   const handleCreateVariation = async () => {
@@ -287,6 +291,17 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
     handleUpdateVariation(variation, { status: newStatus })
   }
 
+  // Handle set default variation
+  const handleSetDefaultVariation = async (variation: StageVariation) => {
+    try {
+      await handleUpdateVariation(variation, { is_default: "Yes" })
+      // Optionally set all other variations to "No" if needed
+      // The backend might handle this automatically
+    } catch (error) {
+      console.error("Failed to set default variation:", error)
+    }
+  }
+
   // Open create variation modal
   const handleOpenCreateVariation = () => {
     if (!stage?.id && mode === "create") {
@@ -411,6 +426,12 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
       setLinkToProductsOpen(false)
       setLinkToGroupOpen(false)
       setVisibilityManagementOpen(false)
+      
+      // Reset variations when creating a new stage (not editing)
+      if (mode === "create" || isCopying) {
+        setVariations([])
+        setIsLoadingVariations(false)
+      }
     }
   }, [isOpen, onHasChangesChange, mode, stage, isCopying])
 
@@ -584,10 +605,30 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
       setHasChanges(false) 
       if (onHasChangesChange) onHasChangesChange(false)
       
-      // If we just created a stage, update the stage object so variations can be created
-      if (mode === "create" && savedStageId) {
-        // Note: We'll need to refresh the stage data from the parent component
-        // For now, we'll just close and let the parent handle the refresh
+      // If we just created a stage (not editing), and there's an image, create a variation
+      if ((mode === "create" || isCopying) && savedStageId && imageBase64 && imageBase64.startsWith("data:image/")) {
+        try {
+          const variationPayload: StageVariationPayload = {
+            stage_id: savedStageId,
+            name: formData.name || "Default",
+            image: imageBase64,
+            status: "Active",
+            is_default: "Yes",
+          }
+          
+          await createStageVariation(variationPayload)
+          toast({
+            title: "Success",
+            description: "Stage and image variation created successfully",
+          })
+        } catch (error) {
+          console.error("Failed to create image variation:", error)
+          toast({
+            title: "Warning",
+            description: error instanceof Error ? error.message : "Stage created but failed to create image variation",
+            variant: "destructive",
+          })
+        }
       }
       
       onClose()
@@ -698,6 +739,7 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
                       value={formData.name}
                       onChange={(e) => handleInputChange("name", e.target.value)}
                       className="h-10"
+                      validationState={formData.name.trim() ? "valid" : "default"}
                     />
                   </div>
                   <div>
@@ -708,6 +750,7 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
                       value={formData.code}
                       onChange={(e) => handleInputChange("code", e.target.value)}
                       className="h-10"
+                      validationState={formData.code.trim() ? "valid" : "default"}
                     />
                   </div>
                 </div>
@@ -722,6 +765,7 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
                       value={formData.sequence}
                       onChange={(e) => handleNumberInputChange("sequence", e.target.value)}
                       className="h-10"
+                      validationState={formData.sequence ? "valid" : "default"}
                     />
                   </div>
                   <div>
@@ -753,6 +797,7 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
                         value={formData.price || 0}
                         onChange={(e) => handleNumberInputChange("price", e.target.value)}
                         className="h-10"
+                        validationState={formData.price ? "valid" : "default"}
                       />
                     </div>
                   </div>
@@ -1001,8 +1046,9 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
                   <div className="border-t pt-4">
                     <div className="grid grid-cols-12 gap-4 text-sm font-medium text-gray-500 mb-3">
                       <div className="col-span-1">Image</div>
-                      <div className="col-span-8">Name</div>
+                      <div className="col-span-5">Name</div>
                       <div className="col-span-2">Active</div>
+                      <div className="col-span-3">Default</div>
                       <div className="col-span-1"></div>
                     </div>
                     
@@ -1035,13 +1081,8 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
                                 </div>
                               )}
                             </div>
-                            <div className="col-span-8">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium">{variation.name}</span>
-                                {variation.is_default === "Yes" && (
-                                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Default</span>
-                                )}
-                              </div>
+                            <div className="col-span-5">
+                              <span className="text-sm font-medium">{variation.name}</span>
                             </div>
                             <div className="col-span-2">
                               <Switch
@@ -1049,6 +1090,27 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
                                 onCheckedChange={() => handleToggleVariationStatus(variation)}
                                 className="data-[state=checked]:bg-[#1162a8]"
                               />
+                            </div>
+                            <div className="col-span-3">
+                              {variation.is_default === "Yes" ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100 cursor-default"
+                                  disabled
+                                >
+                                  Default Image
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"
+                                  onClick={() => handleSetDefaultVariation(variation)}
+                                >
+                                  Set as default image
+                                </Button>
+                              )}
                             </div>
                             <div className="col-span-1">
                               <Button
@@ -1135,6 +1197,7 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
               <Input
                 id="variationName"
                 placeholder="e.g., Crown try in"
+                validationState={variationFormData.name.trim() ? "valid" : "default"}
                 value={variationFormData.name}
                 onChange={(e) => setVariationFormData(prev => ({ ...prev, name: e.target.value }))}
                 className="h-10"

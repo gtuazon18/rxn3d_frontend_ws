@@ -323,6 +323,17 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
     handleUpdateVariation(variation, { status: newStatus })
   }
 
+  // Handle set default variation
+  const handleSetDefaultVariation = async (variation: MaterialVariation) => {
+    try {
+      await handleUpdateVariation(variation, { is_default: "Yes" })
+      // Optionally set all other variations to "No" if needed
+      // The backend might handle this automatically
+    } catch (error) {
+      console.error("Failed to set default variation:", error)
+    }
+  }
+
   // Open create variation modal
   const handleOpenCreateVariation = () => {
     if (!material?.id) {
@@ -577,6 +588,7 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
                       }
                     }}
                     className={`mt-1 ${errors.materialName ? "border-red-500" : ""}`}
+                    validationState={errors.materialName ? "error" : (materialName.trim() ? "valid" : "default")}
                     required
                   />
                   {errors.materialName && <p className="text-red-500 text-sm mt-1">{errors.materialName}</p>}
@@ -592,6 +604,7 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
                     value={materialCode}
                     onChange={(e) => handleInputChange(e.target.value, setMaterialCode)}
                     className="mt-1"
+                    validationState={materialCode.trim() ? "valid" : "default"}
                   />
                 </div>
 
@@ -614,6 +627,7 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
                         type="number"
                         min="0"
                         step="0.01"
+                        validationState={errors.price ? "error" : (additionalPrice.trim() ? "valid" : "default")}
                       />
                       {errors.price && (
                         <p className="text-red-500 text-sm mt-1">{errors.price}</p>
@@ -712,8 +726,9 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
                   <div className="border-t pt-4">
                     <div className="grid grid-cols-12 gap-4 text-sm font-medium text-gray-500 mb-3">
                       <div className="col-span-1">Image</div>
-                      <div className="col-span-8">Name</div>
+                      <div className="col-span-5">Name</div>
                       <div className="col-span-2">Active</div>
+                      <div className="col-span-3">Default</div>
                       <div className="col-span-1"></div>
                     </div>
                     
@@ -746,13 +761,8 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
                                 </div>
                               )}
                             </div>
-                            <div className="col-span-8">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium">{variation.name}</span>
-                                {variation.is_default === "Yes" && (
-                                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Default</span>
-                                )}
-                              </div>
+                            <div className="col-span-5">
+                              <span className="text-sm font-medium">{variation.name}</span>
                             </div>
                             <div className="col-span-2">
                               <Switch
@@ -760,6 +770,27 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
                                 onCheckedChange={() => handleToggleVariationStatus(variation)}
                                 className="data-[state=checked]:bg-[#1162a8]"
                               />
+                            </div>
+                            <div className="col-span-3">
+                              {variation.is_default === "Yes" ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100 cursor-default"
+                                  disabled
+                                >
+                                  Default Image
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"
+                                  onClick={() => handleSetDefaultVariation(variation)}
+                                >
+                                  Set as default image
+                                </Button>
+                              )}
                             </div>
                             <div className="col-span-1">
                               <Button
@@ -821,6 +852,7 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
                 value={variationFormData.name}
                 onChange={(e) => setVariationFormData(prev => ({ ...prev, name: e.target.value }))}
                 className="h-10"
+                validationState={variationFormData.name.trim() ? "valid" : "default"}
               />
             </div>
 

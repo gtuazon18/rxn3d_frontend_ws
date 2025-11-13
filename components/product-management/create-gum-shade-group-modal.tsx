@@ -113,6 +113,7 @@ export function CreateGumShadeGroupModal({ isOpen, onClose, onChanges }: CreateG
                 className="h-12"
                 value={groupName}
                 onChange={(e) => setGroupName(e.target.value)}
+                validationState={groupName.trim() ? "valid" : "default"}
               />
             </div>
           )}

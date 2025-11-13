@@ -113,6 +113,7 @@ export function CreateMaterialGroupModal({ isOpen, onClose }: CreateMaterialGrou
                     value={groupName}
                     onChange={(e) => handleInputChange(e.target.value, setGroupName)}
                     className="mt-1"
+                    validationState={groupName.trim() ? "valid" : "default"}
                   />
                 </div>
 
@@ -149,6 +150,7 @@ export function CreateMaterialGroupModal({ isOpen, onClose }: CreateMaterialGrou
                     value={materialSearch}
                     onChange={(e) => setMaterialSearch(e.target.value)}
                     className="pl-10"
+                    validationState={materialSearch.trim() ? "valid" : "default"}
                   />
                 </div>
                 <div className="space-y-2 max-h-40 overflow-y-auto">

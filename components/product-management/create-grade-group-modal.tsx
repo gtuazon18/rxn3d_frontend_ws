@@ -111,6 +111,7 @@ export function CreateGradeGroupModal({ isOpen, onClose, onChanges }: CreateGrad
                 className="h-12"
                 value={groupName}
                 onChange={(e) => setGroupName(e.target.value)}
+                validationState={groupName.trim() ? "valid" : "default"}
               />
             </div>
           )}

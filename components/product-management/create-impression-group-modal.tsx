@@ -115,6 +115,7 @@ export function CreateImpressionGroupModal({ isOpen, onClose, onChanges }: Creat
                 className="h-12"
                 value={groupName}
                 onChange={(e) => setGroupName(e.target.value)}
+                validationState={groupName.trim() ? "valid" : "default"}
               />
             </div>
           )}
@@ -137,6 +138,7 @@ export function CreateImpressionGroupModal({ isOpen, onClose, onChanges }: Creat
                     placeholder="Search impression"
                     className="h-10 pr-10"
                     value={searchQuery}
+                    validationState={searchQuery.trim() ? "valid" : "default"}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
                   <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">

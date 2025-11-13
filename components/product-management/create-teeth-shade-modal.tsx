@@ -405,6 +405,7 @@ export function CreateTeethShadeModal({
                   className="h-12"
                   value={formData.name}
                   onChange={(e) => handleInputChange("name", e.target.value)}
+                  validationState={formData.name.trim() ? "valid" : "default"}
                   required
                 />
                 <Input
@@ -412,6 +413,7 @@ export function CreateTeethShadeModal({
                   className="h-12"
                   value={formData.system_name}
                   onChange={(e) => handleInputChange("system_name", e.target.value)}
+                  validationState={formData.system_name.trim() ? "valid" : "default"}
                 />
                 <Input
                   placeholder="Sequence *"
@@ -419,6 +421,7 @@ export function CreateTeethShadeModal({
                   className="h-12"
                   value={formData.sequence}
                   onChange={(e) => handleNumberInputChange("sequence", e.target.value)}
+                  validationState={formData.sequence ? "valid" : "default"}
                   required
                 />
                 <Select value={formData.status} onValueChange={(value) => handleInputChange("status", value)}>
@@ -526,6 +529,7 @@ export function CreateTeethShadeModal({
                     <div className="flex gap-2 mb-4">
                       <Input
                         placeholder="Add shade to current form"
+                        validationState={newShadeName.trim() ? "valid" : "default"}
                         value={newShadeName}
                         onChange={(e) => setNewShadeName(e.target.value)}
                         className="h-10"

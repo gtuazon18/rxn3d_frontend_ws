@@ -374,6 +374,7 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
                           setErrors((prev) => ({ ...prev, impressionName: "" }))
                         }
                       }}
+                      validationState={errors.impressionName ? "error" : (impressionName.trim() ? "valid" : "default")}
                       required
                     />
                     {errors.impressionName && <p className="text-red-500 text-xs mt-1">{errors.impressionName}</p>}
@@ -391,6 +392,7 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
                             setErrors((prev) => ({ ...prev, impressionCode: "" }))
                           }
                         }}
+                        validationState={errors.impressionCode ? "error" : (impressionCode.trim() ? "valid" : "default")}
                         required
                       />
                       {errors.impressionCode && <p className="text-red-500 text-xs mt-1">{errors.impressionCode}</p>}
@@ -400,6 +402,7 @@ export function CreateImpressionModal({ isOpen, onClose, onChanges, impression, 
                         placeholder={mode === "create" ? "URL *" : "URL"}
                         className={`h-10 ${errors.impressionUrl ? "border-red-500" : ""}`}
                         value={impressionUrl}
+                        validationState={errors.impressionUrl ? "error" : (impressionUrl.trim() ? "valid" : "default")}
                         onChange={(e) => {
                           setImpressionUrl(e.target.value)
                           if (errors.impressionUrl) {

@@ -412,6 +412,7 @@ export function AddCasePanModal({ isOpen, onClose, editCasePan, onEditDone, isCo
                         className="h-11"
                         value={formData.name}
                         onChange={(e) => handleInputChange("name", e.target.value)}
+                        validationState={formData.name.trim() ? "valid" : "default"}
                         required
                         disabled={!isFieldEditable()}
                         readOnly={!isFieldEditable()}
@@ -422,6 +423,7 @@ export function AddCasePanModal({ isOpen, onClose, editCasePan, onEditDone, isCo
                         className="h-11"
                         value={formData.code}
                         onChange={(e) => handleInputChange("code", e.target.value)}
+                        validationState={formData.code.trim() ? "valid" : "default"}
                         required
                       />
 
@@ -442,6 +444,7 @@ export function AddCasePanModal({ isOpen, onClose, editCasePan, onEditDone, isCo
                           className="h-11"
                           value={formData.quantity}
                           onChange={(e) => handleInputChange("quantity", e.target.value)}
+                          validationState={formData.quantity.trim() ? "valid" : "default"}
                           required
                           min="0"
                           disabled={!isLabAdminFieldEditable()}

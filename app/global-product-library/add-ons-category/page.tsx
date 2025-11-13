@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
 import { AddAddOnCategoryModal } from "@/components/product-management/add-add-on-category-modal"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { useAddOns } from "@/contexts/product-add-on-category-context"
@@ -235,6 +236,9 @@ export default function AddOnsCategoryPage() {
           <TableCell>
             <Skeleton className="h-4 w-20" />
           </TableCell>
+          <TableCell>
+            <Skeleton className="h-4 w-16" />
+          </TableCell>
         </TableRow>
       ))}
     </>
@@ -385,6 +389,7 @@ export default function AddOnsCategoryPage() {
               <TableHead className="font-semibold text-gray-900 text-left pl-6 min-w-[100px] whitespace-nowrap">{t("Category Code", "Category Code")}</TableHead>
               <TableHead className="font-semibold text-gray-900 text-left min-w-[150px]">{t("Add-on Sub Category", "Add-on Sub Category")}</TableHead>
               <TableHead className="font-semibold text-gray-900 text-left min-w-[120px] whitespace-nowrap">{t("Sub Category Code", "Sub Category Code")}</TableHead>
+              <TableHead className="font-semibold text-gray-900 text-left min-w-[100px] whitespace-nowrap">{t("Status")}</TableHead>
               <TableHead className="font-semibold text-gray-900 text-left pr-6 w-24 whitespace-nowrap">{t("Actions")}</TableHead>
             </TableRow>
           </TableHeader>
@@ -412,6 +417,18 @@ export default function AddOnsCategoryPage() {
                         </span>
                       </TableCell>
                       <TableCell className="text-gray-600 text-left whitespace-nowrap">{subcat.code ? subcat.code : "--"}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={
+                            (subcat.status || parentCategory?.status) === "Active"
+                              ? "bg-green-50 text-green-700 border-green-200"
+                              : "bg-gray-50 text-gray-700 border-gray-200"
+                          }
+                        >
+                          {t(subcat.status || parentCategory?.status || "Inactive")}
+                        </Badge>
+                      </TableCell>
                       <TableCell className="text-left pr-6">
                         <div className="flex items-center gap-1">
                           <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-[#1162a8] hover:bg-blue-50" onClick={() => handleEdit(parentCategory)}>
@@ -432,7 +449,7 @@ export default function AddOnsCategoryPage() {
                 })
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-12">
+                  <TableCell colSpan={6} className="text-center py-12">
                     <div className="flex flex-col items-center gap-4">
                       <div className="p-4 bg-gray-100 rounded-full">
                         <Package className="h-8 w-8 text-gray-400" />
@@ -485,6 +502,18 @@ export default function AddOnsCategoryPage() {
                         </span>
                       </TableCell>
                       <TableCell className="text-gray-600 text-left whitespace-nowrap">{subcat.code ? subcat.code : "--"}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={
+                            (subcat.status || category.status) === "Active"
+                              ? "bg-green-50 text-green-700 border-green-200"
+                              : "bg-gray-50 text-gray-700 border-gray-200"
+                          }
+                        >
+                          {t(subcat.status || category.status || "Inactive")}
+                        </Badge>
+                      </TableCell>
                       <TableCell className="text-left pr-6">
                         <div className="flex items-center gap-1">
                           <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-[#1162a8] hover:bg-blue-50" onClick={() => handleEdit(category)}>
@@ -513,7 +542,19 @@ export default function AddOnsCategoryPage() {
                     </TableCell>
                     <TableCell className="text-gray-600 text-left pl-6">{category.code ? category.code : "--"}</TableCell>
                     <TableCell className="text-left">{/* subcategory name */}--</TableCell>
-                    <TableCell className="text-left">{/* subcategory code */}--</TableCell>
+                    <TableCell className="text-left whitespace-nowrap">{/* subcategory code */}--</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={
+                          category.status === "Active"
+                            ? "bg-green-50 text-green-700 border-green-200"
+                            : "bg-gray-50 text-gray-700 border-gray-200"
+                        }
+                      >
+                        {t(category.status || "Inactive")}
+                      </Badge>
+                    </TableCell>
                     <TableCell className="text-left pr-6">
                       <div className="flex items-center gap-1">
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-[#1162a8] hover:bg-blue-50" onClick={() => handleEdit(category)}>

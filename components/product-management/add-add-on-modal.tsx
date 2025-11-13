@@ -404,6 +404,7 @@ export function AddAddOnModal({ isOpen, onClose, onHasChangesChange, addOn, isEd
                         className="h-12"
                         value={formData.name}
                         onChange={(e) => handleInputChange("name", e.target.value)}
+                        validationState={validationErrors.name ? "error" : (formData.name.trim() ? "valid" : "default")}
                         required
                       />
                       {validationErrors.name && (
@@ -416,6 +417,7 @@ export function AddAddOnModal({ isOpen, onClose, onHasChangesChange, addOn, isEd
                         className="h-12"
                         value={formData.code}
                         onChange={(e) => handleInputChange("code", e.target.value)}
+                        validationState={validationErrors.code ? "error" : (formData.code.trim() ? "valid" : "default")}
                       />
                       {validationErrors.code && (
                         <div className="text-red-500 text-xs mt-1">{validationErrors.code}</div>
@@ -430,6 +432,7 @@ export function AddAddOnModal({ isOpen, onClose, onHasChangesChange, addOn, isEd
                           className="h-12"
                           value={formData.price}
                           onChange={(e) => handleInputChange("price", e.target.value)}
+                          validationState={validationErrors.price ? "error" : (formData.price.trim() ? "valid" : "default")}
                         />
                         {validationErrors.price && (
                           <div className="text-red-500 text-xs mt-1">{validationErrors.price}</div>
@@ -508,6 +511,7 @@ export function AddAddOnModal({ isOpen, onClose, onHasChangesChange, addOn, isEd
                     className="h-12"
                     value={formData.sequence}
                     onChange={(e) => handleInputChange("sequence", e.target.value)}
+                    validationState={validationErrors.sequence ? "error" : (formData.sequence.trim() ? "valid" : "default")}
                   />
                   {validationErrors.sequence && (
                     <div className="text-red-500 text-xs mt-1">{validationErrors.sequence}</div>
@@ -554,52 +558,7 @@ export function AddAddOnModal({ isOpen, onClose, onHasChangesChange, addOn, isEd
                 )}
               </div>
             )}
-
-            {/* Link to Products Section */}
-            <Collapsible open={linkToProductsOpen} onOpenChange={setLinkToProductsOpen}>
-              <CollapsibleTrigger className="flex items-center justify-between w-full border-t border-b py-4">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">Link to Products</span>
-                  <Info className="h-4 w-4 text-gray-400" />
-                </div>
-                <ChevronDown className={`h-5 w-5 transition-transform ${linkToProductsOpen ? "rotate-180" : ""}`} />
-              </CollapsibleTrigger>
-              <CollapsibleContent className="pt-4">
-                <p className="text-gray-600 mb-4">Select products to link this add-on to.</p>
-              </CollapsibleContent>
-            </Collapsible>
-
-            {/* Link to Existing Group Section */}
-            <Collapsible open={linkToExistingGroupOpen} onOpenChange={setLinkToExistingGroupOpen}>
-              <CollapsibleTrigger className="flex items-center justify-between w-full border-t border-b py-4">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">Link to Existing Group</span>
-                  <Info className="h-4 w-4 text-gray-400" />
-                </div>
-                <ChevronDown
-                  className={`h-5 w-5 transition-transform ${linkToExistingGroupOpen ? "rotate-180" : ""}`}
-                />
-              </CollapsibleTrigger>
-              <CollapsibleContent className="pt-4">
-                <p className="text-gray-600 mb-4">Select groups to link this add-on to.</p>
-              </CollapsibleContent>
-            </Collapsible>
-
-            {/* Visibility Management Section */}
-            <Collapsible open={visibilityManagementOpen} onOpenChange={setVisibilityManagementOpen}>
-              <CollapsibleTrigger className="flex items-center justify-between w-full border-t border-b py-4">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">Visibility Management</span>
-                  <Info className="h-4 w-4 text-gray-400" />
-                </div>
-                <ChevronDown
-                  className={`h-5 w-5 transition-transform ${visibilityManagementOpen ? "rotate-180" : ""}`}
-                />
-              </CollapsibleTrigger>
-              <CollapsibleContent className="pt-4">
-                <p className="text-gray-600 mb-4">Manage which labs can see this add-on.</p>
-              </CollapsibleContent>
-            </Collapsible>
+          
           </div>
 
           {/* Footer with action buttons */}

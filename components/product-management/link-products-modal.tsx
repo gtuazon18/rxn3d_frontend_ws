@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useRef } from "react"
 import { X, Search, Package, Square, Upload, Image as ImageIcon, Loader2, Trash2 } from "lucide-react"
+import { getStageVariations } from "@/services/stage-variations-api"
+import { getMaterialVariations } from "@/services/material-variations-api"
+import { getRetentionVariations } from "@/services/retention-variations-api"
 import {
   Dialog,
   DialogContent,
@@ -115,6 +118,21 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
   const [imagePreviews, setImagePreviews] = useState<Record<string, string>>({})
   // Ref to track preview URLs for cleanup without causing re-renders
   const imagePreviewsRef = useRef<Record<string, string>>({})
+  // Track selected variation names for display
+  const [selectedVariationNames, setSelectedVariationNames] = useState<Record<string, string>>({})
+
+  // Variation selection modal state
+  const [showVariationModal, setShowVariationModal] = useState(false)
+  const [currentProductId, setCurrentProductId] = useState<number | null>(null)
+  const [currentEntityId, setCurrentEntityId] = useState<number | null>(null)
+  const [variations, setVariations] = useState<any[]>([])
+  const [isLoadingVariations, setIsLoadingVariations] = useState(false)
+  const [selectedVariationId, setSelectedVariationId] = useState<number | null>(null)
+  
+  // Image preview modal state
+  const [showImagePreviewModal, setShowImagePreviewModal] = useState(false)
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null)
+  const [previewImageName, setPreviewImageName] = useState<string>("")
 
   // Use custom products if provided, otherwise use API data
   const products = customProducts || apiProducts
@@ -276,6 +294,12 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
         ...prev,
         [key]: previewUrl
       }))
+      // Clear variation name when uploading new file
+      setSelectedVariationNames(prev => {
+        const newNames = { ...prev }
+        delete newNames[key]
+        return newNames
+      })
       setHasChanges(true)
       toast({
         title: "Image Uploaded",
@@ -290,11 +314,17 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
       })
       setImagePreviews(prev => {
         const newPreviews = { ...prev }
-        if (newPreviews[key]) {
+        if (newPreviews[key] && newPreviews[key].startsWith('blob:')) {
           URL.revokeObjectURL(newPreviews[key])
-          delete newPreviews[key]
         }
+        delete newPreviews[key]
         return newPreviews
+      })
+      // Clear variation name
+      setSelectedVariationNames(prev => {
+        const newNames = { ...prev }
+        delete newNames[key]
+        return newNames
       })
       setHasChanges(true)
     }
@@ -344,6 +374,98 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
     handleImageUpload(productId, entityId, null)
   }
 
+  // Fetch variations for an entity
+  const fetchVariations = async (entityId: number) => {
+    setIsLoadingVariations(true)
+    try {
+      let response: any
+      switch (entityType) {
+        case "material":
+          response = await getMaterialVariations({ material_id: entityId, per_page: 100 })
+          break
+        case "retention":
+          response = await getRetentionVariations({ retention_id: entityId, per_page: 100 })
+          break
+        case "stage":
+        default:
+          response = await getStageVariations({ stage_id: entityId, per_page: 100 })
+          break
+      }
+      setVariations(response.data.data || [])
+    } catch (error) {
+      console.error("Failed to fetch variations:", error)
+      setVariations([])
+    } finally {
+      setIsLoadingVariations(false)
+    }
+  }
+
+  // Open variation selection modal
+  const handleOpenVariationModal = async (productId: number, entityId: number) => {
+    setCurrentProductId(productId)
+    setCurrentEntityId(entityId)
+    setShowVariationModal(true)
+    setSelectedVariationId(null)
+    await fetchVariations(entityId)
+  }
+
+  // Handle variation selection
+  const handleSelectVariation = (variation: any) => {
+    if (!currentProductId || !currentEntityId) return
+
+    setSelectedVariationId(variation.id)
+    
+    // Small delay to show selection feedback before closing
+    setTimeout(() => {
+      const imageKey = `${currentProductId}-${currentEntityId}`
+      
+      // Store the variation URL as preview
+      setImagePreviews(prev => ({
+        ...prev,
+        [imageKey]: variation.image_url
+      }))
+
+      // Store the variation name for display
+      setSelectedVariationNames(prev => ({
+        ...prev,
+        [imageKey]: variation.name
+      }))
+
+      // Create a mock file object to track that an image is selected
+      // We'll use the variation URL when submitting
+      const mockFile = new File([], variation.name, { type: 'image/jpeg' })
+      setUploadedImages(prev => ({
+        ...prev,
+        [imageKey]: mockFile
+      }))
+
+      setHasChanges(true)
+      setShowVariationModal(false)
+      setSelectedVariationId(null)
+      
+      toast({
+        title: "Variation Selected",
+        description: `Selected "${variation.name}"`,
+      })
+    }, 200)
+  }
+
+  // Handle upload new photo
+  const handleUploadNewPhoto = () => {
+    if (!currentProductId || !currentEntityId) return
+    
+    const imageKey = `${currentProductId}-${currentEntityId}`
+    const fileInputId = `file-${imageKey}`
+    
+    setShowVariationModal(false)
+    setSelectedVariationId(null)
+    
+    // Trigger file input click
+    setTimeout(() => {
+      document.getElementById(fileInputId)?.click()
+    }, 100)
+  }
+
   // Update ref whenever imagePreviews changes
   useEffect(() => {
     imagePreviewsRef.current = imagePreviews
@@ -354,10 +476,17 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
     if (!isOpen) {
       // Cleanup all preview URLs when modal closes
       Object.values(imagePreviewsRef.current).forEach(url => {
-        URL.revokeObjectURL(url)
+        if (url.startsWith('blob:')) {
+          URL.revokeObjectURL(url)
+        }
       })
       setImagePreviews({})
       imagePreviewsRef.current = {}
+      setSelectedVariationNames({})
+      setShowVariationModal(false)
+      setCurrentProductId(null)
+      setCurrentEntityId(null)
+      setVariations([])
     }
   }, [isOpen])
 
@@ -804,41 +933,50 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
                                     return (
                                       <div key={entity.id} className="space-y-2">
                                         <div className="flex items-center gap-2">
-                                          {/* Image Preview */}
+                                          {/* Image Preview - Clickable for larger view */}
                                           {previewUrl ? (
-                                            <div className="relative w-16 h-16 border border-gray-200 rounded overflow-hidden flex-shrink-0">
+                                            <div 
+                                              className="relative w-20 h-20 border-2 border-gray-300 rounded-lg overflow-hidden flex-shrink-0 cursor-pointer hover:border-[#1162a8] transition-colors group"
+                                              onClick={() => {
+                                                setPreviewImageUrl(previewUrl)
+                                                setPreviewImageName(selectedVariationNames[imageKey] || (hasImage ? hasImage.name : entity.name))
+                                                setShowImagePreviewModal(true)
+                                              }}
+                                              title="Click to preview"
+                                            >
                                               <img
                                                 src={previewUrl}
-                                                alt={hasImage?.name || entity.name}
+                                                alt={selectedVariationNames[imageKey] || (hasImage ? hasImage.name : entity.name)}
                                                 className="w-full h-full object-cover"
                                               />
+                                              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-opacity flex items-center justify-center">
+                                                <ImageIcon className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                              </div>
                                             </div>
                                           ) : (
-                                            <div className="w-16 h-16 border border-gray-200 rounded flex items-center justify-center flex-shrink-0 bg-gray-50">
-                                              <ImageIcon className="h-6 w-6 text-gray-400" />
+                                            <div className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center flex-shrink-0 bg-gray-50">
+                                              <ImageIcon className="h-8 w-8 text-gray-400" />
                                             </div>
                                           )}
                                           
                                           {/* Input and Buttons */}
                                           <div className="flex-1 flex items-center gap-2">
                                             <Input
-                                              value={hasImage ? hasImage.name : ''}
+                                              value={selectedVariationNames[imageKey] || (hasImage ? hasImage.name : '')}
                                               placeholder={entity.name}
                                               className="flex-1 h-8 text-sm"
                                               readOnly
                                             />
-                                            <label htmlFor={`file-${imageKey}`}>
-                                              <Button
-                                                size="sm"
-                                                variant="outline"
-                                                className="h-8 w-8 p-0"
-                                                type="button"
-                                                onClick={() => document.getElementById(`file-${imageKey}`)?.click()}
-                                                title="Upload image"
-                                              >
-                                                <Upload className="h-4 w-4" />
-                                              </Button>
-                                            </label>
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              className="h-8 w-8 p-0"
+                                              type="button"
+                                              onClick={() => handleOpenVariationModal(product.id, entity.id)}
+                                              title="Change photo"
+                                            >
+                                              <Upload className="h-4 w-4" />
+                                            </Button>
                                             {hasImage && (
                                               <Button
                                                 size="sm"
@@ -985,6 +1123,107 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
         message={`Please wait while we link the selected ${getEntityName(true).toLowerCase()}s to products.`}
         zIndex={99999}
       />
+
+      {/* Variation Selection Modal */}
+      <Dialog open={showVariationModal} onOpenChange={setShowVariationModal}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Change {getEntityName(true)} photo</DialogTitle>
+          </DialogHeader>
+          
+          <div className="py-4">
+            {isLoadingVariations ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-[#1162a8]" />
+              </div>
+            ) : variations.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                No variations available. Please upload a new photo.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {variations.map((variation) => (
+                  <button
+                    key={variation.id}
+                    onClick={() => handleSelectVariation(variation)}
+                    className={`w-full flex items-center gap-3 p-3 border rounded-lg hover:bg-gray-50 transition-colors ${
+                      selectedVariationId === variation.id
+                        ? "border-[#1162a8] bg-blue-50"
+                        : "border-gray-200"
+                    }`}
+                  >
+                    {variation.image_url ? (
+                      <img
+                        src={variation.image_url}
+                        alt={variation.name}
+                        className="w-16 h-16 object-cover rounded"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 bg-gray-200 rounded flex items-center justify-center">
+                        <ImageIcon className="h-6 w-6 text-gray-400" />
+                      </div>
+                    )}
+                    <span className="flex-1 text-left font-medium text-gray-900">
+                      {variation.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowVariationModal(false)
+                setSelectedVariationId(null)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUploadNewPhoto}
+              className="bg-[#1162a8] hover:bg-[#0d4d87] text-white"
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Upload new photo
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Image Preview Modal */}
+      <Dialog open={showImagePreviewModal} onOpenChange={setShowImagePreviewModal}>
+        <DialogContent className="sm:max-w-[600px] p-0 gap-0">
+          <DialogHeader className="px-6 py-4 border-b">
+            <div className="flex items-center justify-between">
+              <DialogTitle>{previewImageName || "Image Preview"}</DialogTitle>
+              <button 
+                onClick={() => setShowImagePreviewModal(false)} 
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </DialogHeader>
+          
+          <div className="p-6 flex items-center justify-center bg-gray-50 min-h-[400px]">
+            {previewImageUrl ? (
+              <img
+                src={previewImageUrl}
+                alt={previewImageName}
+                className="max-w-full max-h-[500px] object-contain rounded-lg shadow-lg"
+              />
+            ) : (
+              <div className="text-center text-gray-500">
+                <ImageIcon className="h-16 w-16 mx-auto mb-2 text-gray-400" />
+                <p>No image to preview</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
