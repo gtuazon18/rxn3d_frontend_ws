@@ -31,7 +31,7 @@ i18n
       crossDomain: false,
       // Add request options to handle errors and caching
       requestOptions: {
-        cache: "force-cache", // Use browser cache to prevent repeated requests
+        cache: process.env.NODE_ENV === "production" ? "force-cache" : "no-cache", // Use browser cache in production, no cache in development
       },
     },
 

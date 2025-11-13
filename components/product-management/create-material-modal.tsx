@@ -9,7 +9,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Switch } from "@/components/ui/switch"
-import { ChevronDown, ChevronRight, X, Info, Trash2 } from "lucide-react"
+import { ChevronDown, ChevronRight, X, Info, Trash2, Edit } from "lucide-react"
 import { DiscardChangesDialog } from "./discard-changes-dialog"
 import { useMaterials } from "@/contexts/product-materials-context"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
@@ -187,7 +187,7 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
     }
   }
 
-  // Handle create variation
+  // Handle create/update variation
   const handleCreateVariation = async () => {
     if (!material?.id) {
       toast({
@@ -207,7 +207,8 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
       return
     }
 
-    if (!variationFormData.image) {
+    // Image is required for create, optional for update
+    if (!editingVariation && !variationFormData.image) {
       toast({
         title: "Error",
         description: "Image is required",
@@ -217,21 +218,54 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
     }
 
     try {
-      const imageBase64 = await fileToBase64(variationFormData.image)
-      const payload = {
-        material_id: material.id,
-        name: variationFormData.name.trim(),
-        image: imageBase64,
-        status: variationFormData.status,
-        is_default: variationFormData.is_default,
+      const isEditing = !!editingVariation
+
+      if (isEditing) {
+        // Update existing variation
+        const updatePayload: any = {
+          name: variationFormData.name.trim(),
+          status: variationFormData.status,
+          is_default: variationFormData.is_default,
+        }
+
+        // Only include image if a new one was uploaded
+        if (variationFormData.image) {
+          const imageBase64 = await fileToBase64(variationFormData.image)
+          updatePayload.image = imageBase64
+        }
+
+        await updateMaterialVariation(editingVariation.id, updatePayload)
+        toast({
+          title: "Success",
+          description: "Variation updated successfully",
+        })
+      } else {
+        // Create new variation
+        if (!variationFormData.image) {
+          toast({
+            title: "Error",
+            description: "Image is required for new variations",
+            variant: "destructive",
+          })
+          return
+        }
+
+        const imageBase64 = await fileToBase64(variationFormData.image)
+        const payload = {
+          material_id: material.id,
+          name: variationFormData.name.trim(),
+          image: imageBase64,
+          status: variationFormData.status,
+          is_default: variationFormData.is_default,
+        }
+
+        await createMaterialVariation(payload)
+        toast({
+          title: "Success",
+          description: "Variation created successfully",
+        })
       }
 
-      await createMaterialVariation(payload)
-      toast({
-        title: "Success",
-        description: "Variation created successfully",
-      })
-      
       // Reset form and close modal
       setVariationFormData({
         name: "",
@@ -242,14 +276,14 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
       })
       setShowVariationModal(false)
       setEditingVariation(null)
-      
+
       // Refresh variations list
       await fetchVariations()
     } catch (error) {
-      console.error("Failed to create variation:", error)
+      console.error(`Failed to ${editingVariation ? "update" : "create"} variation:`, error)
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to create variation",
+        description: error instanceof Error ? error.message : `Failed to ${editingVariation ? "update" : "create"} variation`,
         variant: "destructive",
       })
     }
@@ -351,6 +385,19 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
       imagePreview: null,
       status: "Active",
       is_default: "No",
+    })
+    setShowVariationModal(true)
+  }
+
+  // Open edit variation modal
+  const handleOpenEditVariation = (variation: MaterialVariation) => {
+    setEditingVariation(variation)
+    setVariationFormData({
+      name: variation.name || "",
+      image: null, // Don't set file, user can upload new one
+      imagePreview: variation.image_url || null, // Show existing image
+      status: variation.status || "Active",
+      is_default: variation.is_default || "No",
     })
     setShowVariationModal(true)
   }
@@ -724,12 +771,12 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
                   </div>
                   
                   <div className="border-t pt-4">
-                    <div className="grid grid-cols-12 gap-4 text-sm font-medium text-gray-500 mb-3">
-                      <div className="col-span-1">Image</div>
-                      <div className="col-span-5">Name</div>
-                      <div className="col-span-2">Active</div>
-                      <div className="col-span-3">Default</div>
-                      <div className="col-span-1"></div>
+                    <div className="grid grid-cols-12 gap-4 text-sm font-medium text-gray-500 mb-3 px-4">
+                      <div className="col-span-1 flex items-center">Image</div>
+                      <div className="col-span-4 flex items-center">Name</div>
+                      <div className="col-span-2 flex items-center justify-center">Active</div>
+                      <div className="col-span-3 flex items-center">Default</div>
+                      <div className="col-span-2 flex items-center justify-end">Actions</div>
                     </div>
                     
                     {/* Variations list */}
@@ -746,7 +793,7 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
                               variation.is_default === "Yes" ? "bg-blue-50 border-blue-200" : "bg-white"
                             }`}
                           >
-                            <div className="col-span-1">
+                            <div className="col-span-1 flex items-center">
                               {variation.image_url ? (
                                 <img
                                   src={variation.image_url}
@@ -761,17 +808,17 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
                                 </div>
                               )}
                             </div>
-                            <div className="col-span-5">
+                            <div className="col-span-4 flex items-center">
                               <span className="text-sm font-medium">{variation.name}</span>
                             </div>
-                            <div className="col-span-2">
+                            <div className="col-span-2 flex items-center justify-center">
                               <Switch
                                 checked={variation.status === "Active"}
                                 onCheckedChange={() => handleToggleVariationStatus(variation)}
                                 className="data-[state=checked]:bg-[#1162a8]"
                               />
                             </div>
-                            <div className="col-span-3">
+                            <div className="col-span-3 flex items-center">
                               {variation.is_default === "Yes" ? (
                                 <Button
                                   variant="outline"
@@ -792,12 +839,22 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
                                 </Button>
                               )}
                             </div>
-                            <div className="col-span-1">
+                            <div className="col-span-2 flex items-center justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                onClick={() => handleOpenEditVariation(variation)}
+                                title="Edit variation"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 className="text-red-600 hover:text-red-700 hover:bg-red-50"
                                 onClick={() => handleDeleteVariation(variation)}
+                                title="Delete variation"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -952,7 +1009,7 @@ export function CreateMaterialModal({ isOpen, onClose, material }: CreateMateria
             </Button>
             <Button
               onClick={handleCreateVariation}
-              disabled={!variationFormData.name.trim() || !variationFormData.image}
+              disabled={!variationFormData.name.trim() || (!editingVariation && !variationFormData.image)}
               className="bg-[#1162a8] hover:bg-[#0d4d87]"
             >
               {editingVariation ? "Update Variation" : "Create Variation"}

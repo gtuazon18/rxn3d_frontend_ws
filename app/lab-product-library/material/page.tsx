@@ -546,9 +546,6 @@ export default function MaterialPage() {
         onClose={() => setIsLinkProductsModalOpen(false)}
         entityType="material"
         context="lab"
-        onApply={() => {
-          setIsLinkProductsModalOpen(false)
-        }}
       />
       <DeleteMaterialModal
         isOpen={deleteModalOpen}

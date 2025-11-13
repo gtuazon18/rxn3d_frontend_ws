@@ -269,7 +269,7 @@
     "addNewCasePan": "Add New Case Pan",
     "casePanDetails": "Case Pan Details",
     "casePanName": "Case Pan Name *",
-    "casePanCode": "Case Pan Code (e.g., R01) *",
+    "casePanCode": "Case Pan Code (e.g., R01)",
     "description": "Description",
     "chooseArch": "Choose applicable arch *",
     "upperArch": "Upper Arch",

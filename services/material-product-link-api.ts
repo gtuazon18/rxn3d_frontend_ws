@@ -33,7 +33,8 @@ const getCustomerId = () => {
 
 export interface LinkMaterialProductPayload {
   material_id: number
-  variation_id?: number
+  variation_id?: number | null
+  price?: number | null
 }
 
 export interface LinkMaterialProductItemPayload {
@@ -42,7 +43,7 @@ export interface LinkMaterialProductItemPayload {
 }
 
 export interface LinkMaterialsProductsPayload {
-  customer_id: number
+  customer_id?: number
   products: LinkMaterialProductItemPayload[]
 }
 
@@ -101,12 +102,24 @@ export const linkMaterialsToProducts = async (
 
 /**
  * Build the payload for linking materials to products
+ *
+ * @param selectedMaterialIds - Array of selected material IDs
+ * @param selectedProductIds - Array of selected product IDs
+ * @param products - Full product data
+ * @param materials - Full material data
+ * @param variationSelections - Optional map of product-material combinations to variation IDs
+ *                              Key format: "{productId}-{materialId}", Value: variation_id
+ * @param uploadedImages - Optional map of uploaded images (for tracking purposes)
+ * @param imagePreviews - Optional map of image preview URLs (includes variation image URLs)
  */
 export const buildMaterialLinkPayload = (
   selectedMaterialIds: number[],
   selectedProductIds: number[],
   products: any[],
-  materials: any[]
+  materials: any[],
+  variationSelections?: Record<string, number | null>,
+  uploadedImages?: Record<string, File>,
+  imagePreviews?: Record<string, string>
 ): LinkMaterialsProductsPayload => {
   const customerId = getCustomerId()
 
@@ -116,9 +129,19 @@ export const buildMaterialLinkPayload = (
 
   const productsPayload: LinkMaterialProductItemPayload[] = selectedProductIds.map((productId) => {
     const materialsPayload: LinkMaterialProductPayload[] = selectedMaterialIds.map((materialId) => {
+      const imageKey = `${productId}-${materialId}`
+
+      // Check if a specific variation was selected for this product-material combination
+      const variationId = variationSelections?.[imageKey] ?? null
+
+      // Get material price from lab_material if available
+      const material = materials.find((m: any) => m.id === materialId)
+      const price = material?.lab_material?.price ? parseFloat(material.lab_material.price) : null
+
       return {
         material_id: materialId,
-        variation_id: materialId, // Default to material_id, adjust if you have variation data
+        variation_id: variationId,
+        price: price,
       }
     })
 
@@ -133,4 +156,5 @@ export const buildMaterialLinkPayload = (
     products: productsPayload,
   }
 }
+
 

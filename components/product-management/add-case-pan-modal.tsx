@@ -419,7 +419,7 @@ export function AddCasePanModal({ isOpen, onClose, editCasePan, onEditDone, isCo
                       />
 
                       <Input
-                        placeholder={t("csePanModal.casePanCode", "Case Pan Code (e.g., R01) *")}
+                        placeholder={t("csePanModal.casePanCode", "Case Pan Code (e.g., R01)")}
                         className="h-11"
                         value={formData.code}
                         onChange={(e) => handleInputChange("code", e.target.value)}

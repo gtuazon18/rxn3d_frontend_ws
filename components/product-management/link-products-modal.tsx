@@ -120,6 +120,8 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
   const imagePreviewsRef = useRef<Record<string, string>>({})
   // Track selected variation names for display
   const [selectedVariationNames, setSelectedVariationNames] = useState<Record<string, string>>({})
+  // Track selected variation IDs for API submission
+  const [selectedVariationIds, setSelectedVariationIds] = useState<Record<string, number | null>>({})
 
   // Variation selection modal state
   const [showVariationModal, setShowVariationModal] = useState(false)
@@ -294,11 +296,16 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
         ...prev,
         [key]: previewUrl
       }))
-      // Clear variation name when uploading new file
+      // Clear variation name and ID when uploading new file
       setSelectedVariationNames(prev => {
         const newNames = { ...prev }
         delete newNames[key]
         return newNames
+      })
+      setSelectedVariationIds(prev => {
+        const newIds = { ...prev }
+        delete newIds[key]
+        return newIds
       })
       setHasChanges(true)
       toast({
@@ -320,11 +327,16 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
         delete newPreviews[key]
         return newPreviews
       })
-      // Clear variation name
+      // Clear variation name and ID
       setSelectedVariationNames(prev => {
         const newNames = { ...prev }
         delete newNames[key]
         return newNames
+      })
+      setSelectedVariationIds(prev => {
+        const newIds = { ...prev }
+        delete newIds[key]
+        return newIds
       })
       setHasChanges(true)
     }
@@ -414,11 +426,11 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
     if (!currentProductId || !currentEntityId) return
 
     setSelectedVariationId(variation.id)
-    
+
     // Small delay to show selection feedback before closing
     setTimeout(() => {
       const imageKey = `${currentProductId}-${currentEntityId}`
-      
+
       // Store the variation URL as preview
       setImagePreviews(prev => ({
         ...prev,
@@ -429,6 +441,12 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
       setSelectedVariationNames(prev => ({
         ...prev,
         [imageKey]: variation.name
+      }))
+
+      // Store the variation ID for API submission
+      setSelectedVariationIds(prev => ({
+        ...prev,
+        [imageKey]: variation.id
       }))
 
       // Create a mock file object to track that an image is selected
@@ -442,7 +460,7 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
       setHasChanges(true)
       setShowVariationModal(false)
       setSelectedVariationId(null)
-      
+
       toast({
         title: "Variation Selected",
         description: `Selected "${variation.name}"`,
@@ -483,6 +501,7 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
       setImagePreviews({})
       imagePreviewsRef.current = {}
       setSelectedVariationNames({})
+      setSelectedVariationIds({})
       setShowVariationModal(false)
       setCurrentProductId(null)
       setCurrentEntityId(null)
@@ -576,7 +595,10 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
             selectedEntities,
             selectedProducts,
             products,
-            materials
+            materials,
+            selectedVariationIds,
+            uploadedImages,
+            imagePreviews
           )
           response = await linkMaterialsToProducts(payload)
           break
