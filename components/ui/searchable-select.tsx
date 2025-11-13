@@ -44,8 +44,27 @@ export function SearchableSelect({
   searchPlaceholder = "Search...",
 }: SearchableSelectProps) {
   const [open, setOpen] = React.useState(false)
+  const [searchQuery, setSearchQuery] = React.useState("")
 
   const selectedOption = options.find((option) => option.value === value)
+
+  // Filter options based on search query
+  const filteredOptions = React.useMemo(() => {
+    if (!searchQuery.trim()) {
+      return options
+    }
+    const query = searchQuery.toLowerCase()
+    return options.filter((option) =>
+      option.label.toLowerCase().includes(query)
+    )
+  }, [options, searchQuery])
+
+  // Reset search when popover closes
+  React.useEffect(() => {
+    if (!open) {
+      setSearchQuery("")
+    }
+  }, [open])
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -65,18 +84,26 @@ export function SearchableSelect({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-full p-0" align="start">
-        <Command>
-          <CommandInput placeholder={searchPlaceholder} />
-          <CommandList>
+      <PopoverContent 
+        className="w-[var(--radix-popover-trigger-width)] p-0" 
+        align="start"
+        onWheel={(e) => e.stopPropagation()}
+      >
+        <Command shouldFilter={false} className="overflow-hidden">
+          <CommandInput 
+            placeholder={searchPlaceholder}
+            value={searchQuery}
+            onValueChange={setSearchQuery}
+          />
+          <CommandList className="max-h-[300px] overflow-y-auto overflow-x-hidden overscroll-contain">
             <CommandEmpty>{emptyMessage}</CommandEmpty>
             <CommandGroup>
-              {options.map((option) => (
+              {filteredOptions.map((option) => (
                 <CommandItem
                   key={option.value}
-                  value={option.value}
-                  onSelect={(currentValue) => {
-                    onValueChange?.(currentValue === value ? "" : currentValue)
+                  value={`${option.value} ${option.label}`}
+                  onSelect={() => {
+                    onValueChange?.(option.value === value ? "" : option.value)
                     setOpen(false)
                   }}
                   disabled={option.disabled}

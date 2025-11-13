@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 import { useAddOns, type AddOn } from "@/contexts/product-add-on-context"
 import { useAuth } from "@/contexts/auth-context"
 import { DiscardChangesDialog } from "./discard-changes-dialog"
@@ -536,21 +537,18 @@ export function AddAddOnModal({ isOpen, onClose, onHasChangesChange, addOn, isEd
                 {/* Subcategory select for add-on (not subcategory creation) */}
                 {!formData.createNewSubCategory && (
                   <div>
-                    <Select
+                    <SearchableSelect
                       value={formData.subcategory_id}
                       onValueChange={(value) => handleInputChange("subcategory_id", value)}
-                    >
-                      <SelectTrigger className="h-12">
-                        <SelectValue placeholder="Select Sub-Category *" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {allSubcategories.map((sub) => (
-                          <SelectItem key={sub.id} value={sub.id.toString()}>
-                            {sub.name} ({sub.categoryName})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      placeholder="Select Sub-Category *"
+                      className="h-12"
+                      options={allSubcategories.map((sub) => ({
+                        value: sub.id.toString(),
+                        label: `${sub.name} (${sub.categoryName})`,
+                      }))}
+                      emptyMessage="No sub-categories found."
+                      searchPlaceholder="Search sub-categories..."
+                    />
                     {validationErrors.subcategory_id && (
                       <div className="text-red-500 text-xs mt-1">{validationErrors.subcategory_id}</div>
                     )}
