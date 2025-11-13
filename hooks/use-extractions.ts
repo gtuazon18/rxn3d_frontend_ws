@@ -33,13 +33,31 @@ export function useExtractions(filters: ExtractionsFilters = {}) {
   })
 }
 
+// Helper function to get customer ID for lab_admin
+const getCustomerId = (): number | null => {
+  if (typeof window === 'undefined') return null
+  
+  const role = localStorage.getItem('role')
+  const isLabAdmin = role === 'lab_admin'
+  
+  if (isLabAdmin) {
+    const customerId = localStorage.getItem('customerId')
+    if (customerId) {
+      return parseInt(customerId, 10)
+    }
+  }
+  
+  return null
+}
+
 // Fetch single extraction by ID
 export function useExtraction(id: number | null) {
   return useQuery({
     queryKey: extractionsKeys.detail(id!),
     queryFn: async (): Promise<ExtractionsResponse> => {
       if (!id) throw new Error('Extraction ID is required')
-      return ExtractionsApi.getExtraction(id)
+      const customerId = getCustomerId()
+      return ExtractionsApi.getExtraction(id, customerId || undefined)
     },
     enabled: !!id,
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -124,7 +142,8 @@ export function useDeleteExtraction() {
 
   return useMutation({
     mutationFn: async (id: number): Promise<{ status: boolean; message: string }> => {
-      return ExtractionsApi.deleteExtraction(id)
+      const customerId = getCustomerId()
+      return ExtractionsApi.deleteExtraction(id, customerId || undefined)
     },
     onSuccess: (data, id) => {
       // Remove the extraction from cache
@@ -167,9 +186,10 @@ export function usePrefetchExtraction() {
   const queryClient = useQueryClient()
   
   return useCallback((id: number) => {
+    const customerId = getCustomerId()
     queryClient.prefetchQuery({
       queryKey: extractionsKeys.detail(id),
-      queryFn: async () => ExtractionsApi.getExtraction(id),
+      queryFn: async () => ExtractionsApi.getExtraction(id, customerId || undefined),
       staleTime: 5 * 60 * 1000, // 5 minutes
     })
   }, [queryClient])

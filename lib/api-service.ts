@@ -176,6 +176,23 @@ export const ProductApi = {
   },
 }
 
+// Helper function to get customer ID for lab_admin
+const getCustomerId = (): number | null => {
+  if (typeof window === 'undefined') return null
+  
+  const role = localStorage.getItem('role')
+  const isLabAdmin = role === 'lab_admin'
+  
+  if (isLabAdmin) {
+    const customerId = localStorage.getItem('customerId')
+    if (customerId) {
+      return parseInt(customerId, 10)
+    }
+  }
+  
+  return null
+}
+
 // Extractions API methods
 export const ExtractionsApi = {
   // Get extractions list with filters
@@ -191,6 +208,12 @@ export const ExtractionsApi = {
     lang?: string;
   } = {}) => {
     const queryParams = new URLSearchParams();
+    
+    // Get customerId for lab_admin and add to filters if not already present
+    const customerId = getCustomerId()
+    if (customerId && !filters.customer_id) {
+      filters.customer_id = customerId
+    }
     
     // Add filters to query params
     Object.entries(filters).forEach(([key, value]) => {
@@ -229,7 +252,16 @@ export const ExtractionsApi = {
   },
 
   // Get single extraction by ID
-  getExtraction: async (id: number) => {
+  getExtraction: async (id: number, customerId?: number) => {
+    const queryParams = new URLSearchParams();
+    
+    // Get customerId for lab_admin
+    const customer_id = customerId || getCustomerId()
+    if (customer_id) {
+      queryParams.append('customer_id', customer_id.toString())
+    }
+    
+    const endpoint = `/library/extractions/${id}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
     return ApiService.get<{
       status: boolean;
       message: string;
@@ -247,7 +279,7 @@ export const ExtractionsApi = {
         updated_at: string;
         deleted_at: string | null;
       };
-    }>(`/library/extractions/${id}`);
+    }>(endpoint);
   },
 
   // Create new extraction
@@ -257,7 +289,14 @@ export const ExtractionsApi = {
     color: string;
     sequence: number;
     status: "Active" | "Inactive";
+    customer_id?: number;
   }) => {
+    // Get customerId for lab_admin and add to payload if not already present
+    const customerId = getCustomerId()
+    if (customerId && !data.customer_id) {
+      data.customer_id = customerId
+    }
+    
     return ApiService.post<{
       status: boolean;
       message: string;
@@ -307,11 +346,20 @@ export const ExtractionsApi = {
   },
 
   // Delete extraction
-  deleteExtraction: async (id: number) => {
+  deleteExtraction: async (id: number, customerId?: number) => {
+    const queryParams = new URLSearchParams();
+    
+    // Get customerId for lab_admin
+    const customer_id = customerId || getCustomerId()
+    if (customer_id) {
+      queryParams.append('customer_id', customer_id.toString())
+    }
+    
+    const endpoint = `/library/extractions/${id}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
     return ApiService.delete<{
       status: boolean;
       message: string;
-    }>(`/library/extractions/${id}`);
+    }>(endpoint);
   },
 
   // Stage Notes API

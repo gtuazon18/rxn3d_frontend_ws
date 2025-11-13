@@ -180,7 +180,32 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
   }
   const userRole = getUserRole()
   const isLabAdmin = userRole === "lab_admin"
-  const customerId = isLabAdmin ? user?.customers?.find((customer) => customer.id)?.id : undefined
+  const isSuperAdmin = userRole === "superadmin"
+  
+  // Get customerId from localStorage (similar to other pages)
+  const getCustomerId = (): number | null => {
+    if (typeof window === "undefined") return null
+    
+    if (isLabAdmin || isSuperAdmin) {
+      // For lab_admin or superadmin roles, use customer_id from localStorage
+      const storedCustomerId = localStorage.getItem("customerId")
+      if (storedCustomerId) {
+        return parseInt(storedCustomerId, 10)
+      }
+      // Fallback to user.customers if not found in localStorage
+      if (user?.customers?.length) {
+        return user.customers[0]?.id
+      }
+    } else {
+      // For other roles, use selectedLabId from localStorage as customer_id
+      const storedLabId = localStorage.getItem("selectedLabId")
+      if (storedLabId) {
+        return parseInt(storedLabId, 10)
+      }
+    }
+    return null
+  }
+  const customerId = getCustomerId()
 
   const { toast } = useToast()
   useEffect(() => {
@@ -228,8 +253,8 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
           params.append("sort_by", "asc")
         }
 
-        // Pass customer_id if isLabAdmin and customerId is defined
-        if (isLabAdmin && customerId) {
+        // Pass customer_id if customerId is defined
+        if (customerId) {
           params.append("customer_id", customerId.toString())
         }
 
@@ -535,13 +560,38 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
 
   // Fetch all categories (top-level, not subcategories)
   const fetchAllCategories = useCallback(
-    async (lang = "en", customerId?: number) => {
+    async (lang = "en", passedCustomerId?: number) => {
       setAllCategoriesLoading(true)
       setAllCategoriesError(null)
       try {
         const token = getAuthToken()
         const params = new URLSearchParams({ lang })
-        if (customerId) params.append("customer_id", String(customerId))
+        
+        // Use passed customerId, or get fresh customerId from context
+        let customerIdToUse = passedCustomerId
+        if (!customerIdToUse) {
+          // Get fresh customerId using the same logic
+          if (typeof window !== "undefined") {
+            if (isLabAdmin || isSuperAdmin) {
+              const storedCustomerId = localStorage.getItem("customerId")
+              if (storedCustomerId) {
+                customerIdToUse = parseInt(storedCustomerId, 10)
+              } else if (user?.customers?.length) {
+                customerIdToUse = user.customers[0]?.id
+              }
+            } else {
+              const storedLabId = localStorage.getItem("selectedLabId")
+              if (storedLabId) {
+                customerIdToUse = parseInt(storedLabId, 10)
+              }
+            }
+          }
+        }
+        
+        if (customerIdToUse) {
+          params.append("customer_id", String(customerIdToUse))
+        }
+        
         const response = await fetch(
           `${API_BASE_URL}/library/categories?${params.toString()}`,
           {
@@ -562,7 +612,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         setAllCategoriesLoading(false)
       }
     },
-    []
+    [isLabAdmin, isSuperAdmin, user]
   )
 
   // Fetch subcategories by category ID

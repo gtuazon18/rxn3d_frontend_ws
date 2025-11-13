@@ -55,15 +55,32 @@ export default function ProductCategoryPage() {
   const { currentLanguage } = useLanguage();
   const { t } = useTranslation();
   
+  // Get customerId from localStorage
+  const getCustomerId = (): number | null => {
+    if (typeof window === "undefined") return null
+    const storedCustomerId = localStorage.getItem("customerId")
+    if (storedCustomerId) {
+      return parseInt(storedCustomerId, 10)
+    }
+    // Fallback to selectedLabId for non-lab-admin roles
+    const storedLabId = localStorage.getItem("selectedLabId")
+    if (storedLabId) {
+      return parseInt(storedLabId, 10)
+    }
+    return null
+  }
+  
   // Fetch all categories for the vertical tabs
   useEffect(() => {
-    fetchAllCategories(currentLanguage)
+    const customerId = getCustomerId()
+    fetchAllCategories(currentLanguage, customerId || undefined)
   }, [fetchAllCategories, currentLanguage])
 
   // Fetch subcategories when a category is selected
   useEffect(() => {
     if (selectedCategoryId) {
-      fetchSubcategoriesByCategory(selectedCategoryId, currentLanguage)
+      const customerId = getCustomerId()
+      fetchSubcategoriesByCategory(selectedCategoryId, currentLanguage, customerId || undefined)
     }
   }, [selectedCategoryId, fetchSubcategoriesByCategory, currentLanguage])
 
@@ -227,7 +244,8 @@ export default function ProductCategoryPage() {
     setDeleteTarget(null)
     // Refresh the data after deletion
     if (selectedCategoryId) {
-      fetchSubcategoriesByCategory(selectedCategoryId, currentLanguage)
+      const customerId = getCustomerId()
+      fetchSubcategoriesByCategory(selectedCategoryId, currentLanguage, customerId || undefined)
     } else {
       fetchCategories(currentPage, Number(entriesPerPage), searchQuery, sortColumn, sortDirection)
     }
@@ -626,11 +644,12 @@ export default function ProductCategoryPage() {
           setIsCopying(false)
           setIsAddCategoryModalOpen(false)
           // Refresh data after modal closes
+          const customerId = getCustomerId()
           if (selectedCategoryId) {
-            fetchSubcategoriesByCategory(selectedCategoryId, currentLanguage)
+            fetchSubcategoriesByCategory(selectedCategoryId, currentLanguage, customerId || undefined)
           } else {
             fetchCategories(currentPage, Number(entriesPerPage), searchQuery, sortColumn, sortDirection)
-            fetchAllCategories(currentLanguage) // Refresh category list
+            fetchAllCategories(currentLanguage, customerId || undefined) // Refresh category list
           }
         }}
         editId={editSubCategoryId ?? undefined}
