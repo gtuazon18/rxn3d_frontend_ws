@@ -43,7 +43,7 @@ export default function LabProductLibraryLayout({
                                 <Header />
                                 <div className="flex-1 flex">
                                   <ProductSidebar />
-                                  <main className="flex-1 p-6">
+                                  <main className="flex-1">
                                     {children}
                                   </main>
                                 </div>
