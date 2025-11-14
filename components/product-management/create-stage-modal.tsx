@@ -96,10 +96,21 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Image Variations state management
-  const [variations, setVariations] = useState<StageVariation[]>([])
+  // Local variation type for create mode (without id, stage_id, timestamps)
+  type LocalVariation = {
+    tempId?: string // Temporary ID for local variations
+    name: string
+    image: string // Base64 encoded image
+    imagePreview: string | null
+    status: "Active" | "Inactive"
+    is_default: "Yes" | "No"
+    sequence: number
+  }
+  const [variations, setVariations] = useState<(StageVariation | LocalVariation)[]>([])
   const [isLoadingVariations, setIsLoadingVariations] = useState(false)
   const [showVariationModal, setShowVariationModal] = useState(false)
-  const [editingVariation, setEditingVariation] = useState<StageVariation | null>(null)
+  const [editingVariation, setEditingVariation] = useState<StageVariation | LocalVariation | null>(null)
+  const [editingVariationIndex, setEditingVariationIndex] = useState<number | null>(null) // Track index for local variations
   const [variationFormData, setVariationFormData] = useState({
     name: "",
     image: null as File | null,
@@ -158,15 +169,6 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
 
   // Handle create/update variation
   const handleCreateVariation = async () => {
-    if (!stage?.id) {
-      toast({
-        title: "Error",
-        description: "Stage ID is required. Please save the stage first.",
-        variant: "destructive",
-      })
-      return
-    }
-
     if (!variationFormData.name.trim()) {
       toast({
         title: "Error",
@@ -186,11 +188,140 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
       return
     }
 
+    // Handle create mode (local variations)
+    if (mode === "create" || isCopying) {
+      try {
+        const isEditing = editingVariationIndex !== null
+        
+        if (isEditing && editingVariationIndex !== null) {
+          // Update existing local variation
+          if (!variationFormData.image && !variationFormData.imagePreview) {
+            toast({
+              title: "Error",
+              description: "Image is required",
+              variant: "destructive",
+            })
+            return
+          }
+
+          let imageBase64 = ""
+          if (variationFormData.image) {
+            imageBase64 = await fileToBase64(variationFormData.image)
+          } else if (variationFormData.imagePreview) {
+            // Use existing preview if no new image uploaded
+            imageBase64 = variationFormData.imagePreview
+          }
+
+          const updatedVariations = [...variations]
+          const existingVariation = updatedVariations[editingVariationIndex] as LocalVariation
+          
+          // If setting as default, unset all other defaults
+          if (variationFormData.is_default === "Yes") {
+            updatedVariations.forEach((v, idx) => {
+              if (idx !== editingVariationIndex) {
+                (v as LocalVariation).is_default = "No"
+              }
+            })
+          }
+
+          updatedVariations[editingVariationIndex] = {
+            ...existingVariation,
+            name: variationFormData.name.trim(),
+            image: imageBase64,
+            imagePreview: variationFormData.imagePreview,
+            status: variationFormData.status,
+            is_default: variationFormData.is_default,
+            sequence: variationFormData.sequence,
+          }
+          
+          setVariations(updatedVariations)
+          setHasChanges(true)
+          if (onHasChangesChange) onHasChangesChange(true)
+          
+          toast({
+            title: "Success",
+            description: "Variation updated successfully",
+          })
+        } else {
+          // Create new local variation
+          if (!variationFormData.image) {
+            toast({
+              title: "Error",
+              description: "Image is required for new variations",
+              variant: "destructive",
+            })
+            return
+          }
+
+          const imageBase64 = await fileToBase64(variationFormData.image)
+          
+          // If setting as default, unset all other defaults
+          const updatedVariations = [...variations]
+          if (variationFormData.is_default === "Yes") {
+            updatedVariations.forEach((v) => {
+              (v as LocalVariation).is_default = "No"
+            })
+          }
+
+          const newVariation: LocalVariation = {
+            tempId: `temp-${Date.now()}-${Math.random()}`,
+            name: variationFormData.name.trim(),
+            image: imageBase64,
+            imagePreview: variationFormData.imagePreview,
+            status: variationFormData.status,
+            is_default: variationFormData.is_default,
+            sequence: variationFormData.sequence,
+          }
+          
+          updatedVariations.push(newVariation)
+          setVariations(updatedVariations)
+          setHasChanges(true)
+          if (onHasChangesChange) onHasChangesChange(true)
+          
+          toast({
+            title: "Success",
+            description: "Variation added successfully",
+          })
+        }
+        
+        // Reset form and close modal
+        setVariationFormData({
+          name: "",
+          image: null,
+          imagePreview: null,
+          status: "Active",
+          is_default: "No",
+          sequence: 0,
+        })
+        setShowVariationModal(false)
+        setEditingVariation(null)
+        setEditingVariationIndex(null)
+      } catch (error) {
+        console.error(`Failed to ${editingVariation ? "update" : "create"} variation:`, error)
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : `Failed to ${editingVariation ? "update" : "create"} variation`,
+          variant: "destructive",
+        })
+      }
+      return
+    }
+
+    // Handle edit mode (API calls)
+    if (!stage?.id) {
+      toast({
+        title: "Error",
+        description: "Stage ID is required. Please save the stage first.",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
-      const isEditing = !!editingVariation
+      const isEditing = !!editingVariation && "id" in editingVariation
       
-      if (isEditing) {
-        // Update existing variation
+      if (isEditing && editingVariation && "id" in editingVariation) {
+        // Update existing variation via API
         const updatePayload: StageVariationUpdatePayload = {
           name: variationFormData.name.trim(),
           status: variationFormData.status,
@@ -210,7 +341,7 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
           description: "Variation updated successfully",
         })
       } else {
-        // Create new variation
+        // Create new variation via API
         if (!variationFormData.image) {
           toast({
             title: "Error",
@@ -248,6 +379,7 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
       })
       setShowVariationModal(false)
       setEditingVariation(null)
+      setEditingVariationIndex(null)
       
       // Refresh variations list
       await fetchVariations()
@@ -281,8 +413,26 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
   }
 
   // Handle delete variation
-  const handleDeleteVariation = async (variation: StageVariation) => {
+  const handleDeleteVariation = async (variation: StageVariation | LocalVariation, index?: number) => {
     if (!confirm(`Are you sure you want to delete "${variation.name}"?`)) {
+      return
+    }
+
+    // Handle create mode (local variations)
+    if ((mode === "create" || isCopying) && index !== undefined) {
+      const updatedVariations = variations.filter((_, idx) => idx !== index)
+      setVariations(updatedVariations)
+      setHasChanges(true)
+      if (onHasChangesChange) onHasChangesChange(true)
+      toast({
+        title: "Success",
+        description: "Variation removed successfully",
+      })
+      return
+    }
+
+    // Handle edit mode (API call)
+    if (!("id" in variation)) {
       return
     }
 
@@ -324,33 +474,60 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
   }
 
   // Handle toggle variation status
-  const handleToggleVariationStatus = (variation: StageVariation) => {
+  const handleToggleVariationStatus = (variation: StageVariation | LocalVariation, index?: number) => {
     const newStatus = variation.status === "Active" ? "Inactive" : "Active"
-    handleUpdateVariation(variation, { status: newStatus })
+    
+    // Handle create mode (local variations)
+    if ((mode === "create" || isCopying) && index !== undefined) {
+      const updatedVariations = [...variations]
+      updatedVariations[index] = { ...variation, status: newStatus } as LocalVariation
+      setVariations(updatedVariations)
+      setHasChanges(true)
+      if (onHasChangesChange) onHasChangesChange(true)
+      return
+    }
+
+    // Handle edit mode (API call)
+    if ("id" in variation) {
+      handleUpdateVariation(variation, { status: newStatus })
+    }
   }
 
   // Handle set default variation
-  const handleSetDefaultVariation = async (variation: StageVariation) => {
-    try {
-      await handleUpdateVariation(variation, { is_default: "Yes" })
-      // Optionally set all other variations to "No" if needed
-      // The backend might handle this automatically
-    } catch (error) {
-      console.error("Failed to set default variation:", error)
+  const handleSetDefaultVariation = async (variation: StageVariation | LocalVariation, index?: number) => {
+    // Handle create mode (local variations)
+    if ((mode === "create" || isCopying) && index !== undefined) {
+      const updatedVariations = [...variations]
+      // Unset all other defaults
+      updatedVariations.forEach((v, idx) => {
+        if (idx === index) {
+          (v as LocalVariation).is_default = "Yes"
+        } else {
+          (v as LocalVariation).is_default = "No"
+        }
+      })
+      setVariations(updatedVariations)
+      setHasChanges(true)
+      if (onHasChangesChange) onHasChangesChange(true)
+      return
+    }
+
+    // Handle edit mode (API call)
+    if ("id" in variation) {
+      try {
+        await handleUpdateVariation(variation, { is_default: "Yes" })
+        // Optionally set all other variations to "No" if needed
+        // The backend might handle this automatically
+      } catch (error) {
+        console.error("Failed to set default variation:", error)
+      }
     }
   }
 
   // Open create variation modal
   const handleOpenCreateVariation = () => {
-    if (!stage?.id && mode === "create") {
-      toast({
-        title: "Info",
-        description: "Please save the stage first before adding variations",
-        variant: "default",
-      })
-      return
-    }
     setEditingVariation(null)
+    setEditingVariationIndex(null)
     setVariationFormData({
       name: "",
       image: null,
@@ -363,12 +540,21 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
   }
 
   // Open edit variation modal
-  const handleOpenEditVariation = (variation: StageVariation) => {
+  const handleOpenEditVariation = (variation: StageVariation | LocalVariation, index?: number) => {
     setEditingVariation(variation)
+    setEditingVariationIndex(index !== undefined ? index : null)
+    
+    // Get image preview - for local variations use imagePreview, for API variations use image_url
+    const imagePreview = "imagePreview" in variation && variation.imagePreview 
+      ? variation.imagePreview 
+      : "image_url" in variation && variation.image_url 
+        ? variation.image_url 
+        : null
+    
     setVariationFormData({
       name: variation.name || "",
       image: null, // Don't set file, user can upload new one
-      imagePreview: variation.image_url || null, // Show existing image
+      imagePreview: imagePreview, // Show existing image
       status: variation.status || "Active",
       is_default: variation.is_default || "No",
       sequence: variation.sequence || 0,
@@ -600,7 +786,13 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
       return
     }
 
-    const payload: StagePayload = { ...formData }
+    const payload: StagePayload & { variations?: Array<{
+      name: string
+      status: "Active" | "Inactive"
+      sequence: number
+      is_default: "Yes" | "No"
+      image: string
+    }> } = { ...formData }
     
     if (userRole === "lab_admin") {
       payload.price = formData.price || 0
@@ -615,6 +807,20 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
     // If imageBase64 is a URL (starts with http), it means it's the original image and hasn't changed
     if (imageBase64 && imageBase64.startsWith("data:image/")) {
       payload.image = imageBase64
+    }
+
+    // Include variations in payload for create mode
+    if ((mode === "create" || isCopying) && variations.length > 0) {
+      payload.variations = variations.map((v) => {
+        const localVar = v as LocalVariation
+        return {
+          name: localVar.name,
+          status: localVar.status,
+          sequence: localVar.sequence,
+          is_default: localVar.is_default,
+          image: localVar.image, // Already base64 encoded
+        }
+      })
     }
 
     let success = false
@@ -717,35 +923,12 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
       }
     }
     
-    if (success) {
+      if (success) {
       setHasChanges(false) 
       if (onHasChangesChange) onHasChangesChange(false)
       
-      // If we just created a stage (not editing), and there's an image, create a variation
-      if ((mode === "create" || isCopying) && savedStageId && imageForVariation) {
-        try {
-          const variationPayload: StageVariationPayload = {
-            stage_id: savedStageId,
-            name: formData.name || "Default",
-            image: imageForVariation,
-            status: "Active",
-            is_default: "Yes",
-          }
-          
-          await createStageVariation(variationPayload)
-          toast({
-            title: "Success",
-            description: "Stage and image variation created successfully",
-          })
-        } catch (error) {
-          console.error("Failed to create image variation:", error)
-          toast({
-            title: "Warning",
-            description: error instanceof Error ? error.message : "Stage created but failed to create image variation",
-            variant: "destructive",
-          })
-        }
-      }
+      // Note: Variations are now included in the create payload, so no need to create them separately
+      // The backend should handle creating variations from the payload
       
       onClose()
     }
@@ -1153,7 +1336,6 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
                       size="sm"
                       className="bg-blue-600 text-white hover:bg-blue-700 border-blue-600"
                       onClick={handleOpenCreateVariation}
-                      disabled={!stage?.id && mode === "create"}
                     >
                       + New variation
                     </Button>
@@ -1169,87 +1351,99 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
                     </div>
                     
                     {/* Variations list */}
-                    {isLoadingVariations ? (
+                    {isLoadingVariations && (mode === "edit" && !isCopying) ? (
                       <div className="text-center py-8 text-gray-500">Loading variations...</div>
                     ) : variations.length === 0 ? (
                       <div className="text-center py-8 text-gray-500">No variations yet. Click "+ New variation" to add one.</div>
                     ) : (
                       <div className="space-y-3">
-                        {variations.map((variation) => (
-                          <div
-                            key={variation.id}
-                            className={`grid grid-cols-12 gap-4 items-center py-3 px-4 border rounded-lg ${
-                              variation.is_default === "Yes" ? "bg-blue-50 border-blue-200" : "bg-white"
-                            }`}
-                          >
-                            <div className="col-span-1 flex items-center">
-                              {variation.image_url ? (
-                                <img
-                                  src={variation.image_url}
-                                  alt={variation.name}
-                                  className="w-12 h-12 object-cover rounded-lg"
+                        {variations.map((variation, index) => {
+                          // Get image URL - for local variations use imagePreview, for API variations use image_url
+                          const imageUrl = "imagePreview" in variation && variation.imagePreview
+                            ? variation.imagePreview
+                            : "image_url" in variation && variation.image_url
+                              ? variation.image_url
+                              : null
+                          
+                          // Get unique key
+                          const key = "id" in variation ? variation.id : ("tempId" in variation ? variation.tempId : index)
+                          
+                          return (
+                            <div
+                              key={key}
+                              className={`grid grid-cols-12 gap-4 items-center py-3 px-4 border rounded-lg ${
+                                variation.is_default === "Yes" ? "bg-blue-50 border-blue-200" : "bg-white"
+                              }`}
+                            >
+                              <div className="col-span-1 flex items-center">
+                                {imageUrl ? (
+                                  <img
+                                    src={imageUrl}
+                                    alt={variation.name}
+                                    className="w-12 h-12 object-cover rounded-lg"
+                                  />
+                                ) : (
+                                  <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
+                                    <svg className="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                    </svg>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="col-span-4 flex items-center">
+                                <span className="text-sm font-medium">{variation.name}</span>
+                              </div>
+                              <div className="col-span-2 flex items-center justify-center">
+                                <Switch
+                                  checked={variation.status === "Active"}
+                                  onCheckedChange={() => handleToggleVariationStatus(variation, index)}
+                                  className="data-[state=checked]:bg-[#1162a8]"
                                 />
-                              ) : (
-                                <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
-                                  <svg className="h-6 w-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                                  </svg>
-                                </div>
-                              )}
-                            </div>
-                            <div className="col-span-4 flex items-center">
-                              <span className="text-sm font-medium">{variation.name}</span>
-                            </div>
-                            <div className="col-span-2 flex items-center justify-center">
-                              <Switch
-                                checked={variation.status === "Active"}
-                                onCheckedChange={() => handleToggleVariationStatus(variation)}
-                                className="data-[state=checked]:bg-[#1162a8]"
-                              />
-                            </div>
-                            <div className="col-span-3 flex items-center">
-                              {variation.is_default === "Yes" ? (
+                              </div>
+                              <div className="col-span-3 flex items-center">
+                                {variation.is_default === "Yes" ? (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100 cursor-default"
+                                    disabled
+                                  >
+                                    Default Image
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"
+                                    onClick={() => handleSetDefaultVariation(variation, index)}
+                                  >
+                                    Set as default image
+                                  </Button>
+                                )}
+                              </div>
+                              <div className="col-span-2 flex items-center justify-end gap-2">
                                 <Button
-                                  variant="outline"
+                                  variant="ghost"
                                   size="sm"
-                                  className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100 cursor-default"
-                                  disabled
+                                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                  onClick={() => handleOpenEditVariation(variation, index)}
+                                  title="Edit variation"
                                 >
-                                  Default Image
+                                  <Edit className="h-4 w-4" />
                                 </Button>
-                              ) : (
                                 <Button
-                                  variant="outline"
+                                  variant="ghost"
                                   size="sm"
-                                  className="bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"
-                                  onClick={() => handleSetDefaultVariation(variation)}
+                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  onClick={() => handleDeleteVariation(variation, index)}
+                                  title="Delete variation"
                                 >
-                                  Set as default image
+                                  <Trash2 className="h-4 w-4" />
                                 </Button>
-                              )}
+                              </div>
                             </div>
-                            <div className="col-span-2 flex items-center justify-end gap-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                onClick={() => handleOpenEditVariation(variation)}
-                                title="Edit variation"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                onClick={() => handleDeleteVariation(variation)}
-                                title="Delete variation"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     )}
                   </div>
@@ -1444,7 +1638,7 @@ export function CreateStageModal({ isOpen, onClose, onHasChangesChange, stage, m
             </Button>
             <Button
               onClick={handleCreateVariation}
-              disabled={!variationFormData.name.trim() || (!editingVariation && !variationFormData.image)}
+              disabled={!variationFormData.name.trim() || (!editingVariation && !variationFormData.image) || (!!editingVariation && editingVariationIndex !== null && !variationFormData.image && !variationFormData.imagePreview)}
               className="bg-[#1162a8] hover:bg-[#0d4d87]"
             >
               {editingVariation ? "Update Variation" : "Create Variation"}
