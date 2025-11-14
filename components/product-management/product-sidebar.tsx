@@ -64,7 +64,7 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
   // Flat items (single tabs, not in accordion)
   const flatItems: SideTabItem[] = useMemo(() => [
     { id: "case-pans", label: t("productLibrary.sideBar.CasePans", "Case Pans"), href: `${routePrefix}/case-pans` },
-    { id: "case-tracking", label: t("productLibrary.sideBar.CaseTracking", "Case Tracking"), href: `${routePrefix}/case-tracking` },
+    // { id: "case-tracking", label: t("productLibrary.sideBar.CaseTracking", "Case Tracking"), href: `${routePrefix}/case-tracking` },
     { id: "stages", label: t("productLibrary.sideBar.Stages", "Stages"), href: `${routePrefix}/stages` },
     { id: "grades", label: t("productLibrary.sideBar.Grades", "Grades"), href: `${routePrefix}/grades` },
     { id: "tooth-mapping", label: t("productLibrary.sideBar.ToothMapping", "Tooth Mapping"), href: `${routePrefix}/tooth-mapping` },
