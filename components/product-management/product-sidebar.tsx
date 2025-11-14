@@ -1,12 +1,13 @@
 "use client"
 
+import type React from "react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { usePathname } from "next/navigation"
 import { useTranslation } from "react-i18next"
-import { useMemo } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { useAuth } from "@/contexts/auth-context"
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion"
+import { ChevronDown, ChevronRight } from "lucide-react"
 
 type SideTabItem = {
   id: string
@@ -30,6 +31,7 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
   const pathname = usePathname() || "";
   const { t } = useTranslation()
   const { user } = useAuth()
+  const [expandedItems, setExpandedItems] = useState<string[]>([])
 
   // Get user role from auth context
   const userRoles = user?.roles || (user?.role ? [user.role] : [])
@@ -62,6 +64,7 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
   // Flat items (single tabs, not in accordion)
   const flatItems: SideTabItem[] = useMemo(() => [
     { id: "case-pans", label: t("productLibrary.sideBar.CasePans", "Case Pans"), href: `${routePrefix}/case-pans` },
+    { id: "case-tracking", label: t("productLibrary.sideBar.CaseTracking", "Case Tracking"), href: `${routePrefix}/case-tracking` },
     { id: "stages", label: t("productLibrary.sideBar.Stages", "Stages"), href: `${routePrefix}/stages` },
     { id: "grades", label: t("productLibrary.sideBar.Grades", "Grades"), href: `${routePrefix}/grades` },
     { id: "tooth-mapping", label: t("productLibrary.sideBar.ToothMapping", "Tooth Mapping"), href: `${routePrefix}/tooth-mapping` },
@@ -80,19 +83,44 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
 
   // Find the active tab only once
   const activeTabHref = useMemo(
-    () => allItems.find(item => pathname === item.href)?.href,
+    () => allItems.find(item => pathname === item.href || pathname.startsWith(`${item.href}/`))?.href,
     [pathname, allItems]
   )
 
-  // Find which accordion should be open based on active path
-  const defaultOpenAccordion = useMemo(() => {
-    if (!activeTabHref) return undefined
-    const activeItem = allItems.find(item => item.href === activeTabHref)
-    if (!activeItem) return undefined
-    return sidebarGroups.find(group => 
-      group.items.some(item => item.id === activeItem.id)
-    )?.id
-  }, [activeTabHref, allItems, sidebarGroups])
+  // Automatically expand parent groups when a child is active
+  useEffect(() => {
+    const currentPath = pathname || "";
+    const shouldBeExpanded: string[] = []
+
+    const checkGroup = (group: SidebarGroup) => {
+      const hasActiveChild = group.items.some(item => 
+        currentPath === item.href || currentPath.startsWith(`${item.href}/`)
+      )
+      if (hasActiveChild) {
+        shouldBeExpanded.push(group.id)
+      }
+    }
+
+    sidebarGroups.forEach((group) => checkGroup(group))
+    setExpandedItems([...new Set(shouldBeExpanded)])
+  }, [pathname, sidebarGroups])
+
+  const toggleMenuItem = (groupId: string) => {
+    setExpandedItems((prev) =>
+      prev.includes(groupId)
+        ? prev.filter((id) => id !== groupId)
+        : [...prev, groupId],
+    );
+  }
+
+  const isExpanded = (groupId: string) => {
+    return expandedItems.includes(groupId)
+  }
+
+  const isActive = (href?: string) => {
+    if (!href) return false;
+    return pathname === href || pathname.startsWith(`${href}/`);
+  }
 
   const handleTabClick = (tabId: string) => {
     if (onTabChange) {
@@ -104,57 +132,25 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
     <div className="w-72 bg-white border-r border-[#d9d9d9]">
       <div className="px-6 py-4 font-bold text-lg border-b border-[#d9d9d9]">{t("productLibrary.productManagementLabel")}</div>
       <div className="overflow-y-auto max-h-[calc(100vh-120px)] product-sidebar-scroll">
-        <Accordion 
-          type="single" 
-          collapsible 
-          defaultValue={defaultOpenAccordion}
-          className="w-full"
-        >
-          {sidebarGroups.map((group) => {
-            const hasActiveItem = group.items.some(item => item.href === activeTabHref)
-            
-            return (
-              <AccordionItem 
-                key={group.id} 
-                value={group.id} 
-                className="border-none"
-              >
-                <AccordionTrigger 
-                  className={cn(
-                    "px-6 py-4 text-base font-medium hover:no-underline",
-                    hasActiveItem ? "bg-[#dfeefb] text-[#1162a8]" : "text-[#000000] hover:bg-gray-100"
-                  )}
-                >
-                  {group.label}
-                </AccordionTrigger>
-                <AccordionContent className="pb-0 pt-0">
-                  <div className="flex flex-col">
-                    {group.items.map((item) => {
-                      const isActive = activeTabHref === item.href
-                      return (
-                        <Link
-                          key={item.id}
-                          href={item.href}
-                          prefetch={true}
-                          className={cn(
-                            "block px-6 py-3 text-sm transition-colors font-medium",
-                            isActive ? "bg-[#dfeefb] text-[#1162a8] border-l-4 border-[#1162a8]" : "text-[#000000] hover:bg-gray-100",
-                          )}
-                          onClick={() => handleTabClick(item.id)}
-                        >
-                          {item.label}
-                        </Link>
-                      )
-                    })}
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            )
-          })}
-        </Accordion>
+        {sidebarGroups.map((group) => {
+          const hasActiveItem = group.items.some(item => isActive(item.href))
+          const groupExpanded = isExpanded(group.id)
+          
+          return (
+            <SidebarGroupItem
+              key={group.id}
+              group={group}
+              isExpanded={groupExpanded}
+              hasActiveItem={hasActiveItem}
+              isActive={isActive}
+              toggleExpand={toggleMenuItem}
+              handleTabClick={handleTabClick}
+            />
+          )
+        })}
         {/* Flat items (single tabs) */}
         {flatItems.map((item) => {
-          const isActive = activeTabHref === item.href
+          const itemActive = isActive(item.href)
           return (
             <Link
               key={item.id}
@@ -162,7 +158,7 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
               prefetch={true}
               className={cn(
                 "block px-6 py-4 text-base transition-colors font-medium",
-                isActive ? "bg-[#dfeefb] text-[#1162a8] border-l-4 border-[#1162a8]" : "text-[#000000] hover:bg-gray-100",
+                itemActive ? "bg-[#dfeefb] text-[#1162a8] border-l-4 border-[#1162a8]" : "text-[#000000] hover:bg-gray-100",
               )}
               onClick={() => handleTabClick(item.id)}
             >
@@ -191,6 +187,63 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
           background: #0f5490;
         }
       `}</style>
+    </div>
+  )
+}
+
+interface SidebarGroupItemProps {
+  group: SidebarGroup
+  isExpanded: boolean
+  hasActiveItem: boolean
+  isActive: (href?: string) => boolean
+  toggleExpand: (groupId: string) => void
+  handleTabClick: (tabId: string) => void
+}
+
+function SidebarGroupItem({ group, isExpanded, hasActiveItem, isActive, toggleExpand, handleTabClick }: SidebarGroupItemProps) {
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    toggleExpand(group.id)
+  }
+
+  return (
+    <div>
+      <button
+        onClick={handleClick}
+        className={cn(
+          "flex items-center justify-between w-full px-6 py-4 text-base font-medium transition-colors text-left",
+          hasActiveItem ? "bg-[#dfeefb] text-[#1162a8]" : "text-[#000000] hover:bg-gray-100"
+        )}
+      >
+        <span>{group.label}</span>
+        {isExpanded ? (
+          <ChevronDown className="h-4 w-4 flex-shrink-0" />
+        ) : (
+          <ChevronRight className="h-4 w-4 flex-shrink-0" />
+        )}
+      </button>
+      
+      {isExpanded && (
+        <div className="flex flex-col">
+          {group.items.map((item) => {
+            const itemActive = isActive(item.href)
+            return (
+              <Link
+                key={item.id}
+                href={item.href}
+                prefetch={true}
+                className={cn(
+                  "block pl-12 pr-6 py-3 text-base transition-colors font-medium",
+                  itemActive ? "bg-[#dfeefb] text-[#1162a8] border-l-4 border-[#1162a8]" : "text-[#000000] hover:bg-gray-100",
+                )}
+                onClick={() => handleTabClick(item.id)}
+              >
+                {item.label}
+              </Link>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

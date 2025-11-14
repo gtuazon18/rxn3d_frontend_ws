@@ -876,7 +876,14 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
       if (!headers) return null
 
       try {
-        const response = await fetch(`${API_BASE_URL}/library/addon-categories/${id}?language=${currentLanguage}`, {
+        let url = `${API_BASE_URL}/library/addon-categories/${id}?language=${currentLanguage}`
+        
+        // Add customer_id if available
+        if (customerId) {
+          url += `&customer_id=${customerId}`
+        }
+        
+        const response = await fetch(url, {
           headers,
         })
 
@@ -892,7 +899,7 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
         return null
       }
     },
-    [getAuthHeaders, currentLanguage, handleApiError],
+    [getAuthHeaders, currentLanguage, handleApiError, customerId],
   )
 
   // Get addon subcategory detail
@@ -902,7 +909,14 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
       if (!headers) return null
 
       try {
-        const response = await fetch(`${API_BASE_URL}/library/addon-subcategories/${id}?language=${currentLanguage}`, {
+        let url = `${API_BASE_URL}/library/addon-subcategories/${id}?language=${currentLanguage}`
+        
+        // Add customer_id if available
+        if (customerId) {
+          url += `&customer_id=${customerId}`
+        }
+        
+        const response = await fetch(url, {
           headers,
         })
 
@@ -918,7 +932,7 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
         return null
       }
     },
-    [getAuthHeaders, currentLanguage, handleApiError],
+    [getAuthHeaders, currentLanguage, handleApiError, customerId],
   )
 
   // Categories operations

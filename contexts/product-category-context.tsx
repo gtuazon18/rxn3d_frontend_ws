@@ -611,8 +611,15 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
     async (id: number): Promise<ProductCategory | null> => {
       try {
         const token = getAuthToken()
+        let url = `${API_BASE_URL}/library/subcategories/${id}?lang=${currentLanguage}`
+        
+        // Add customer_id if available
+        if (customerId) {
+          url += `&customer_id=${customerId}`
+        }
+        
         const response = await fetch(
-          `${API_BASE_URL}/library/subcategories/${id}?lang=${currentLanguage}`,
+          url,
           {
             method: "GET",
             headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -631,15 +638,22 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         return null
       }
     },
-    [currentLanguage, toast]
+    [currentLanguage, toast, customerId]
   )
 
   const getCategoryDetail = useCallback(
     async (id: number): Promise<ProductCategory | null> => {
       try {
         const token = getAuthToken()
+        let url = `${API_BASE_URL}/library/categories/${id}?lang=${currentLanguage}`
+        
+        // Add customer_id if available
+        if (customerId) {
+          url += `&customer_id=${customerId}`
+        }
+        
         const response = await fetch(
-          `${API_BASE_URL}/library/categories/${id}?lang=${currentLanguage}`,
+          url,
           {
             method: "GET",
             headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -671,7 +685,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         return null
       }
     },
-    [currentLanguage, toast]
+    [currentLanguage, toast, customerId]
   )
 
   // --- NEW: API for all categories ---

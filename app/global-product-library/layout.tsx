@@ -17,6 +17,7 @@ import { GumShadesProvider } from "@/contexts/product-gum-shade-context"
 import { AddOnsProvider } from "@/contexts/product-add-on-context"
 import { AddOnsCategoryProvider } from "@/contexts/product-add-on-category-context"
 import { ProductsProvider } from "@/contexts/product-products-context"
+import { CaseTrackingProvider } from "@/contexts/case-tracking-context"
 import { ProtectedRoute } from "@/components/protected-route"
 
 export default function GlobalProductLibraryLayout({
@@ -37,21 +38,23 @@ export default function GlobalProductLibraryLayout({
                       <GumShadesProvider>
                         <AddOnsProvider>
                           <AddOnsCategoryProvider>
-                          <ProductsProvider>
-                          <div className="flex min-h-screen bg-[#f9f9f9]">
-                            <DashboardSidebar />
-                            <div className="flex-1 flex flex-col">
-                              <Header />
-                              <div className="flex-1 flex">
-                                <ProductSidebar />
-                                <main className="flex-1">
-                                  {children}
-                                </main>
-                              </div>
-                            </div>
-                          </div>
-                          </ProductsProvider>
-                        </AddOnsCategoryProvider>
+                            <ProductsProvider>
+                              <CaseTrackingProvider>
+                                <div className="flex min-h-screen bg-[#f9f9f9]">
+                                  <DashboardSidebar />
+                                  <div className="flex-1 flex flex-col">
+                                    <Header />
+                                    <div className="flex-1 flex">
+                                      <ProductSidebar />
+                                      <main className="flex-1">
+                                        {children}
+                                      </main>
+                                    </div>
+                                  </div>
+                                </div>
+                              </CaseTrackingProvider>
+                            </ProductsProvider>
+                          </AddOnsCategoryProvider>
                         </AddOnsProvider>
                       </GumShadesProvider>
                     </TeethShadesProvider>

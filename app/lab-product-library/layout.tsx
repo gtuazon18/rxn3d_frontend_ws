@@ -17,6 +17,7 @@ import { GumShadesProvider } from "@/contexts/product-gum-shade-context"
 import { AddOnsProvider } from "@/contexts/product-add-on-context"
 // Removed ProductsProvider - now using React Query hooks directly in components
 import { AddOnsCategoryProvider } from "@/contexts/product-add-on-category-context"
+import { CaseTrackingProvider } from "@/contexts/case-tracking-context"
 import { ProtectedRoute } from "@/components/protected-route"
 
 export default function LabProductLibraryLayout({
@@ -37,18 +38,20 @@ export default function LabProductLibraryLayout({
                       <GumShadesProvider>
                         <AddOnsProvider>
                           <AddOnsCategoryProvider>
-                            <div className="flex min-h-screen bg-[#f9f9f9]">
-                              <DashboardSidebar />
-                              <div className="flex-1 flex flex-col">
-                                <Header />
-                                <div className="flex-1 flex">
-                                  <ProductSidebar />
-                                  <main className="flex-1">
-                                    {children}
-                                  </main>
+                            <CaseTrackingProvider>
+                              <div className="flex min-h-screen bg-[#f9f9f9]">
+                                <DashboardSidebar />
+                                <div className="flex-1 flex flex-col">
+                                  <Header />
+                                  <div className="flex-1 flex">
+                                    <ProductSidebar />
+                                    <main className="flex-1">
+                                      {children}
+                                    </main>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
+                            </CaseTrackingProvider>
                           </AddOnsCategoryProvider>
                         </AddOnsProvider>
                       </GumShadesProvider>
