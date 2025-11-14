@@ -307,9 +307,9 @@ export default function AddOnsPage() {
         </div>
         
         <div className="flex gap-3">
-          <Button className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors">
+          {/* <Button className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors">
             Import add-ons
-          </Button>
+          </Button> */}
           <Button
             className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
             onClick={() => setIsCreateModalOpen(true)}

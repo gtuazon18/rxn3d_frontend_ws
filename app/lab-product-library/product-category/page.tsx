@@ -31,18 +31,13 @@ export default function ProductCategoryPage() {
     setSortDirection,
     setSelectedItems,
     deleteCategory,
-    allCategories,
-    allCategoriesLoading,
-    fetchAllCategories,
-    subcategoriesByCategory,
-    subcategoriesLoading,
-    fetchSubcategoriesByCategory,
+    getCategoryDetail,
   } = useProductCategory()
 
   const [entriesPerPage, setEntriesPerPage] = useState(pagination.per_page.toString() || "25")
   const [currentPage, setCurrentPage] = useState(pagination.current_page || 1)
   const [isAddCategoryModalOpen, setIsAddCategoryModalOpen] = useState(false)
-  const [editSubCategoryId, setEditSubCategoryId] = useState<number | null>(null)
+  const [editCategoryId, setEditCategoryId] = useState<number | null>(null)
   const [searchInput, setSearchInput] = useState(searchQuery)
   const [disableAllFields, setDisableAllFields] = useState(false)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
@@ -51,39 +46,9 @@ export default function ProductCategoryPage() {
   const [isCustomNo, setIsCustomNo] = useState(false)
   const [isCopying, setIsCopying] = useState(false)
   const [copyingCategory, setCopyingCategory] = useState<any>(null)
-  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null)
   const { currentLanguage } = useLanguage();
   const { t } = useTranslation();
   
-  // Get customerId from localStorage
-  const getCustomerId = (): number | null => {
-    if (typeof window === "undefined") return null
-    const storedCustomerId = localStorage.getItem("customerId")
-    if (storedCustomerId) {
-      return parseInt(storedCustomerId, 10)
-    }
-    // Fallback to selectedLabId for non-lab-admin roles
-    const storedLabId = localStorage.getItem("selectedLabId")
-    if (storedLabId) {
-      return parseInt(storedLabId, 10)
-    }
-    return null
-  }
-  
-  // Fetch all categories for the vertical tabs
-  useEffect(() => {
-    const customerId = getCustomerId()
-    fetchAllCategories(currentLanguage, customerId || undefined)
-  }, [fetchAllCategories, currentLanguage])
-
-  // Fetch subcategories when a category is selected
-  useEffect(() => {
-    if (selectedCategoryId) {
-      const customerId = getCustomerId()
-      fetchSubcategoriesByCategory(selectedCategoryId, currentLanguage, customerId || undefined)
-    }
-  }, [selectedCategoryId, fetchSubcategoriesByCategory, currentLanguage])
-
   useEffect(() => {
     fetchCategories(currentPage, Number(entriesPerPage), searchQuery, sortColumn, sortDirection)
   }, [currentPage, entriesPerPage, searchQuery, sortColumn, sortDirection, fetchCategories, currentLanguage])
@@ -97,16 +62,6 @@ export default function ProductCategoryPage() {
     }, 500)
     return () => clearTimeout(timer)
   }, [searchInput, searchQuery, setSearchQuery])
-
-  // Get the categories to display in the table
-  const displayCategories = selectedCategoryId 
-    ? subcategoriesByCategory 
-    : categories
-
-  // Get the loading state
-  const isTableLoading = selectedCategoryId 
-    ? subcategoriesLoading 
-    : isLoading
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
@@ -142,16 +97,10 @@ export default function ProductCategoryPage() {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedItems(displayCategories.map((category) => category.id))
+      setSelectedItems(categories.map((category) => category.id))
     } else {
       setSelectedItems([])
     }
-  }
-
-  const handleCategorySelect = (categoryId: number | null) => {
-    setSelectedCategoryId(categoryId)
-    setSelectedItems([]) // Clear selection when switching categories
-    setCurrentPage(1) // Reset to first page
   }
 
   const handleSelectItem = (itemId: number, checked: boolean) => {
@@ -184,7 +133,7 @@ export default function ProductCategoryPage() {
 
   const handleModalClose = () => {
     setIsAddCategoryModalOpen(false)
-    setEditSubCategoryId(null)
+    setEditCategoryId(null)
     fetchCategories(currentPage, Number(entriesPerPage), searchQuery, sortColumn, sortDirection)
   }
 
@@ -203,8 +152,8 @@ export default function ProductCategoryPage() {
   }
 
   function handleEdit(id: number): void {
-    const category = displayCategories.find((cat) => cat.id === id)
-    setEditSubCategoryId(id)
+    const category = categories.find((cat) => cat.id === id)
+    setEditCategoryId(id)
     setCopyingCategory(null)
     setIsCopying(false)
     setIsAddCategoryModalOpen(true)
@@ -212,9 +161,9 @@ export default function ProductCategoryPage() {
   }
 
   function handleCopyCategory(id: number): void {
-    const category = displayCategories.find((cat) => cat.id === id)
+    const category = categories.find((cat) => cat.id === id)
     if (category) {
-      setEditSubCategoryId(null)
+      setEditCategoryId(null)
       setCopyingCategory(category)
       setIsCopying(true)
       setIsAddCategoryModalOpen(true)
@@ -223,8 +172,8 @@ export default function ProductCategoryPage() {
   }
 
   function handleDelete(id: number): void {
-    const category = displayCategories.find((cat) => cat.id === id)
-    setDeleteTarget({ id, name: category?.name || category?.sub_name })
+    const category = categories.find((cat) => cat.id === id)
+    setDeleteTarget({ id, name: category?.name })
     setIsCustomNo((category as any)?.is_custom === "No")
     setDeleteModalOpen(true)
   }
@@ -232,47 +181,21 @@ export default function ProductCategoryPage() {
   async function confirmDelete() {
     if (!deleteTarget) return
     if (isCustomNo) {
-      // Do not delete, just close modal
       setDeleteModalOpen(false)
       setDeleteTarget(null)
       return
     }
     setIsDeleting(true)
-    await deleteCategory(deleteTarget.id, !!selectedCategoryId) // true if subcategory, false if category
+    await deleteCategory(deleteTarget.id, false) // false = category, not subcategory
     setIsDeleting(false)
     setDeleteModalOpen(false)
     setDeleteTarget(null)
-    // Refresh the data after deletion
-    if (selectedCategoryId) {
-      const customerId = getCustomerId()
-      fetchSubcategoriesByCategory(selectedCategoryId, currentLanguage, customerId || undefined)
-    } else {
-      fetchCategories(currentPage, Number(entriesPerPage), searchQuery, sortColumn, sortDirection)
-    }
+    fetchCategories(currentPage, Number(entriesPerPage), searchQuery, sortColumn, sortDirection)
   }
 
   function closeDeleteModal() {
     setDeleteModalOpen(false)
     setDeleteTarget(null)
-  }
-
-  function handleCopy(text: string): void {
-    if (navigator && navigator.clipboard) {
-      navigator.clipboard.writeText(text).catch((err) => {
-        console.error("Failed to copy text: ", err)
-      })
-    } else {
-      const textarea = document.createElement("textarea")
-      textarea.value = text
-      document.body.appendChild(textarea)
-      textarea.select()
-      try {
-        document.execCommand("copy")
-      } catch (err) {
-        console.error("Fallback: Oops, unable to copy", err)
-      }
-      document.body.removeChild(textarea)
-    }
   }
   
   return (
@@ -285,8 +208,8 @@ export default function ProductCategoryPage() {
             <Package className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">{t("Product Categories Management")}</h1>
-            <p className="text-sm text-gray-500">{t("Manage your product category inventory and configurations")}</p>
+            <h1 className="text-xl font-semibold text-gray-900">{t("Category Management", { defaultValue: "Category Management" })}</h1>
+            <p className="text-sm text-gray-500">{t("Manage your product categories", { defaultValue: "Manage your product categories" })}</p>
           </div>
         </div>
       </div>
@@ -326,9 +249,6 @@ export default function ProductCategoryPage() {
         </div>
         
         <div className="flex gap-3">
-          <Button className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors">
-            {t("Import from category library", { defaultValue: "Import from category library" })}
-          </Button>
           <Button
             className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
             onClick={() => setIsAddCategoryModalOpen(true)}
@@ -356,73 +276,27 @@ export default function ProductCategoryPage() {
         </div>
       )}
 
-      {/* Main Content with Vertical Tabs */}
-      <div className="flex flex-row">
-        {/* Vertical Tabs for Categories */}
-        <div className="w-64 border-r border-gray-200 bg-gray-50 flex-shrink-0">
-          <div className="p-4 border-b border-gray-200">
-            <h2 className="text-sm font-semibold text-gray-900">{t("Categories", { defaultValue: "Categories" })}</h2>
-          </div>
-          <div className="overflow-y-auto max-h-[calc(100vh-300px)]">
-            {allCategoriesLoading ? (
-              <div className="p-4 text-center">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#1162a8] mx-auto"></div>
-                <p className="text-xs text-gray-500 mt-2">{t("Loading categories...")}</p>
-              </div>
-            ) : (
-              <>
-                <button
-                  onClick={() => handleCategorySelect(null)}
-                  className={`w-full px-4 py-3 text-left text-sm font-medium transition-colors border-b border-gray-200 ${
-                    selectedCategoryId === null
-                      ? "bg-[#1162a8] text-white border-l-4 border-l-white"
-                      : "bg-white text-gray-700 hover:bg-gray-100"
-                  }`}
-                >
-                  {t("All Categories", { defaultValue: "All Categories" })}
-                </button>
-                {allCategories.map((category) => (
-                  <button
-                    key={category.id}
-                    onClick={() => handleCategorySelect(category.id)}
-                    className={`w-full px-4 py-3 text-left text-sm font-medium transition-colors border-b border-gray-200 ${
-                      selectedCategoryId === category.id
-                        ? "bg-[#1162a8] text-white border-l-4 border-l-white"
-                        : "bg-white text-gray-700 hover:bg-gray-100"
-                    }`}
-                  >
-                    {category.name}
-                  </button>
-                ))}
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Table Section */}
-        <div className="flex-1 overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-gray-50/80 hover:bg-gray-50">
-                <TableHead className="w-12 pl-6">
-                  <Checkbox
-                    checked={selectedItems.length === displayCategories.length && displayCategories.length > 0}
-                    onCheckedChange={handleSelectAll}
-                    className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
-                    aria-label={t("Select all categories", { defaultValue: "Select all categories" })}
-                  />
-                </TableHead>
+      {/* Table Section */}
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-gray-50/80 hover:bg-gray-50">
+              <TableHead className="w-12 pl-6">
+                <Checkbox
+                  checked={selectedItems.length === categories.length && categories.length > 0}
+                  onCheckedChange={handleSelectAll}
+                  className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
+                  aria-label={t("Select all categories", { defaultValue: "Select all categories" })}
+                />
+              </TableHead>
               <TableHead className="font-semibold text-gray-900">
                 {t("Case Pan", { defaultValue: "Case Pan" })}
               </TableHead>
               <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("name")}>
                 <div className="flex items-center">
-                  {t("productCategory", { defaultValue: "Category" })} 
+                  {t("Category", { defaultValue: "Category" })} 
                   {renderSortIndicator("name")}
                 </div>
-              </TableHead>
-              <TableHead className="font-semibold text-gray-900">
-                {t("Sub Category", { defaultValue: "Sub Category" })}
               </TableHead>
               <TableHead className="font-semibold text-gray-900">
                 {t("Default Code", { defaultValue: "Default Code" })}
@@ -439,21 +313,20 @@ export default function ProductCategoryPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isTableLoading ? (
+            {isLoading ? (
               Array.from({ length: Number.parseInt(entriesPerPage) }).map((_, index) => (
                 <TableRow key={`skeleton-${index}`}>
                   <TableCell><div className="w-4 h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
                   <TableCell><div className="w-8 h-6 bg-gray-200 rounded animate-pulse" /></TableCell>
                   <TableCell><div className="w-32 h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
-                  <TableCell><div className="w-20 h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
                   <TableCell><div className="w-16 h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
                   <TableCell><div className="w-16 h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
                   <TableCell><div className="w-20 h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
                   <TableCell><div className="w-20 h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
                 </TableRow>
               ))
-            ) : displayCategories.length > 0 ? (
-              displayCategories.map((category) => (
+            ) : categories.length > 0 ? (
+              categories.map((category) => (
                 <TableRow key={category.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                   <TableCell className="pl-6">
                     <Checkbox
@@ -472,9 +345,6 @@ export default function ProductCategoryPage() {
                   </TableCell>
                   <TableCell className="font-medium text-gray-900" id={`category-name-${category.id}`}>
                     {category.name}
-                  </TableCell>
-                  <TableCell className="text-gray-600">
-                    {category?.sub_name || "-"}
                   </TableCell>
                   <TableCell>
                     <code className="bg-gray-100 px-2 py-1 rounded text-xs font-mono text-gray-800">
@@ -539,27 +409,22 @@ export default function ProductCategoryPage() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-12">
+                <TableCell colSpan={7} className="text-center py-12">
                   <div className="flex flex-col items-center gap-4">
                     <div className="p-4 bg-gray-100 rounded-full">
                       <Package className="h-8 w-8 text-gray-400" />
                     </div>
                     <div className="text-center">
                       <h3 className="font-medium text-gray-900 mb-1">
-                        {selectedCategoryId 
-                          ? t("No sub-categories found")
-                          : t("No categories found")
-                        }
+                        {t("No categories found")}
                       </h3>
                       <p className="text-sm text-gray-500 mb-4">
                         {searchInput 
                           ? t("Try adjusting your search terms or filters")
-                          : selectedCategoryId
-                          ? t("This category has no sub-categories yet")
                           : t("Get started by creating your first category")
                         }
                       </p>
-                      {!searchInput && !selectedCategoryId && (
+                      {!searchInput && (
                         <Button
                           className="bg-[#1162a8] hover:bg-[#0f5497] text-white"
                           onClick={() => setIsAddCategoryModalOpen(true)}
@@ -575,11 +440,10 @@ export default function ProductCategoryPage() {
             )}
           </TableBody>
         </Table>
-        </div>
       </div>
 
-      {/* Pagination - Only show when viewing all categories, not subcategories */}
-      {!selectedCategoryId && pagination.total > 0 && (
+      {/* Pagination */}
+      {pagination.total > 0 && (
         <div className="px-6 py-4 flex justify-between items-center border-t border-gray-200">
           <div className="text-sm text-gray-600">
             {t("Showing")} {startEntry} {t("to")} {endEntry} {t("of")} {pagination.total} {t("entries")}
@@ -627,34 +491,18 @@ export default function ProductCategoryPage() {
         </div>
       )}
 
-      {/* Show count for subcategories */}
-      {selectedCategoryId && displayCategories.length > 0 && (
-        <div className="px-6 py-4 flex justify-between items-center border-t border-gray-200">
-          <div className="text-sm text-gray-600">
-            {t("Showing")} {displayCategories.length} {t("sub-categories", { defaultValue: "sub-categories" })}
-          </div>
-        </div>
-      )}
-
       <AddCategoryModal
         isOpen={isAddCategoryModalOpen}
         onClose={() => {
-          setEditSubCategoryId(null)
+          setEditCategoryId(null)
           setCopyingCategory(null)
           setIsCopying(false)
           setIsAddCategoryModalOpen(false)
-          // Refresh data after modal closes
-          const customerId = getCustomerId()
-          if (selectedCategoryId) {
-            fetchSubcategoriesByCategory(selectedCategoryId, currentLanguage, customerId || undefined)
-          } else {
-            fetchCategories(currentPage, Number(entriesPerPage), searchQuery, sortColumn, sortDirection)
-            fetchAllCategories(currentLanguage, customerId || undefined) // Refresh category list
-          }
+          fetchCategories(currentPage, Number(entriesPerPage), searchQuery, sortColumn, sortDirection)
         }}
-        editId={editSubCategoryId ?? undefined}
-        isEdit={!!editSubCategoryId && !isCopying}
-        isSubCategoryEdit={!!editSubCategoryId && !isCopying}
+        editId={editCategoryId ?? undefined}
+        isEdit={!!editCategoryId && !isCopying}
+        isSubCategoryEdit={false}
         disableAllFields={disableAllFields}
         isCopying={isCopying}
         copyingCategory={copyingCategory}

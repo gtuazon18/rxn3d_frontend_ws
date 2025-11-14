@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useAddOns, type AddOn } from "@/contexts/product-add-on-category-context"
+import { useAddOns, type AddOn, type AddOnCategory, type AddOnSubCategory } from "@/contexts/product-add-on-category-context"
 import { DiscardChangesDialog } from "./discard-changes-dialog"
 import { generateCodeFromName } from "@/lib/utils"
 
@@ -18,19 +18,25 @@ interface AddAddOnModalProps {
   isOpen: boolean
   onClose: () => void
   onHasChangesChange: (hasChanges: boolean) => void
-  addOn?: AddOn | null
+  addOn?: AddOn | AddOnCategory | AddOnSubCategory | null
   isEditing?: boolean
   isCopying?: boolean // Flag to indicate if we're copying an add-on category
+  isSubCategory?: boolean // Flag to indicate if we're working with a subcategory
 }
 
-export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, addOn, isEditing = false, isCopying = false }: AddAddOnModalProps) {
+export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, addOn, isEditing = false, isCopying = false, isSubCategory = false }: AddAddOnModalProps) {
   const {
     addOnCategoriesForSelect,
     fetchAddOnCategoriesForSelect,
     isLoadingCategoriesForSelect,
     createAddOn,
     updateAddOn,
+    createAddOnCategory,
+    updateAddOnCategory,
     createAddOnSubCategory,
+    updateAddOnSubCategory,
+    getAddOnCategoryDetail,
+    getAddOnSubcategoryDetail,
     showAnimation,
     triggerAnimation,
   } = useAddOns()
@@ -49,6 +55,7 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
 
   const [formData, setFormData] = useState(defaultFormData)
   const [initialFormData, setInitialFormData] = useState(defaultFormData)
+  const [isDetailLoading, setIsDetailLoading] = useState(false)
 
   const [addOnDetailsEnabled, setAddOnDetailsEnabled] = useState(true)
   const [linkToProductsOpen, setLinkToProductsOpen] = useState(false)
@@ -67,35 +74,65 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
         const copyData = {
           name: addOn.name,
           code: addOn.code || "",
-          price: addOn.price?.toString() || "",
+          price: (addOn as any).price?.toString() || "",
           type: addOn.type || "Both",
           status: addOn.status,
           sequence: addOn.sequence?.toString() || "",
-          subcategory_id: addOn.subcategory_id?.toString() || "",
+          subcategory_id: (addOn as AddOnSubCategory).category_id?.toString() || "",
           createNewSubCategory: false,
-          parentCategoryId: "",
+          parentCategoryId: (addOn as AddOnSubCategory).category_id?.toString() || "",
         }
         setFormData(copyData)
         setInitialFormData(copyData)
       } else if (addOn && isEditing && !isCopying) {
-        // Editing: use the provided addOn data
-        const editData = {
-          name: addOn.name,
-          code: addOn.code || "",
-          price: addOn.price?.toString() || "",
-          type: addOn.type || "Both",
-          status: addOn.status,
-          sequence: addOn.sequence?.toString() || "",
-          subcategory_id: addOn.subcategory_id?.toString() || "",
-          createNewSubCategory: false,
-          parentCategoryId: "",
+        // Editing: fetch detail from API if needed
+        setIsDetailLoading(true)
+        if (isSubCategory) {
+          // Editing subcategory
+          getAddOnSubcategoryDetail((addOn as AddOnSubCategory).id).then((detail) => {
+            if (detail) {
+              const editData = {
+                name: detail.name,
+                code: detail.code || "",
+                price: "",
+                type: detail.type || "Both",
+                status: detail.status,
+                sequence: detail.sequence?.toString() || "",
+                subcategory_id: "",
+                createNewSubCategory: false,
+                parentCategoryId: detail.category_id?.toString() || "",
+              }
+              setFormData(editData)
+              setInitialFormData(editData)
+            }
+            setIsDetailLoading(false)
+          })
+        } else {
+          // Editing category
+          getAddOnCategoryDetail((addOn as AddOnCategory).id).then((detail) => {
+            if (detail) {
+              const editData = {
+                name: detail.name,
+                code: detail.code || "",
+                price: "",
+                type: detail.type || "Both",
+                status: detail.status,
+                sequence: detail.sequence?.toString() || "",
+                subcategory_id: "",
+                createNewSubCategory: false,
+                parentCategoryId: "",
+              }
+              setFormData(editData)
+              setInitialFormData(editData)
+            }
+            setIsDetailLoading(false)
+          })
         }
-        setFormData(editData)
-        setInitialFormData(editData)
       } else {
-        // New add-on: reset form
+        // New category/subcategory: reset form
         setFormData(defaultFormData)
         setInitialFormData(defaultFormData)
+        setIsDetailLoading(false)
       }
       setHasChanges(false)
       if (onHasChangesChange) onHasChangesChange(false)
@@ -104,7 +141,7 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
       setLinkToExistingGroupOpen(false)
       setVisibilityManagementOpen(false)
     }
-  }, [isOpen, addOn, isEditing, isCopying, onHasChangesChange])
+  }, [isOpen, addOn, isEditing, isCopying, isSubCategory, onHasChangesChange, getAddOnCategoryDetail, getAddOnSubcategoryDetail])
 
   // Fetch categories when modal opens
   useEffect(() => {
@@ -171,73 +208,89 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
 
 
   const handleSave = async () => {
-    let finalSubcategoryId: number | null = null
-
-    if (formData.createNewSubCategory) {
-      // Create new subcategory first
+    if (isSubCategory) {
+      // Handle subcategory
       if (!formData.name.trim() || !formData.parentCategoryId) {
         triggerAnimation("error", "Sub-category name and parent category are required.")
         return
       }
 
-      const newSubCategory = await createAddOnSubCategory({
+      const payload = {
         name: formData.name,
         code: formData.code,
         category_id: Number(formData.parentCategoryId),
         type: formData.type as "Upper" | "Lower" | "Both",
         sequence: Number(formData.sequence) || 0,
         status: formData.status as "Active" | "Inactive",
-      })
-
-      if (!newSubCategory) {
-        return // Error handled by context
       }
 
-      finalSubcategoryId = newSubCategory.id
+      try {
+        let success = false
+        if (isEditing && addOn && !isCopying) {
+          success = !!(await updateAddOnSubCategory((addOn as AddOnSubCategory).id, payload))
+        } else {
+          success = !!(await createAddOnSubCategory(payload))
+        }
+
+        if (success) {
+          setHasChanges(false)
+          if (onHasChangesChange) onHasChangesChange(false)
+          onClose()
+        }
+      } catch (error) {
+        console.error("Error saving subcategory:", error)
+      }
     } else {
-      finalSubcategoryId = Number(formData.subcategory_id)
-    }
-
-    // Create or update the add-on
-    const payload = {
-      name: formData.createNewSubCategory ? `${formData.name} Add-on` : formData.name,
-      code: formData.code,
-      price: formData.price !== "" ? Number.parseFloat(formData.price) : null,
-      type: formData.type as "Upper" | "Lower" | "Both",
-      status: formData.status as "Active" | "Inactive",
-      sequence: formData.sequence !== "" ? Number.parseInt(formData.sequence) : 0,
-      subcategory_id: finalSubcategoryId,
-    }
-
-    try {
-      let success = false
-      // If copying, always create a new add-on (not update)
-      if (isEditing && addOn && !isCopying) {
-        success = !!(await updateAddOn(addOn.id, payload))
-      } else {
-        // Create new add-on (either new or copy)
-        success = !!(await createAddOn(payload))
+      // Handle category
+      if (!formData.name.trim()) {
+        triggerAnimation("error", "Category name is required.")
+        return
       }
 
-      if (success) {
-        setHasChanges(false)
-        if (onHasChangesChange) onHasChangesChange(false)
-        onClose()
+      const payload = {
+        name: formData.name,
+        code: formData.code,
+        type: formData.type as "Upper" | "Lower" | "Both",
+        sequence: Number(formData.sequence) || 0,
+        status: formData.status as "Active" | "Inactive",
       }
-    } catch (error) {
-      console.error("Error saving add-on:", error)
+
+      try {
+        let success = false
+        if (isEditing && addOn && !isCopying) {
+          success = !!(await updateAddOnCategory((addOn as AddOnCategory).id, payload))
+        } else {
+          success = !!(await createAddOnCategory(payload))
+        }
+
+        if (success) {
+          setHasChanges(false)
+          if (onHasChangesChange) onHasChangesChange(false)
+          onClose()
+        }
+      } catch (error) {
+        console.error("Error saving category:", error)
+      }
     }
   }
 
   const isFormValid =
-  formData.name.trim() !== "" &&
-  formData.status.trim() !== "" && formData.createNewSubCategory ? formData.parentCategoryId.trim() !== "" : true
+    formData.name.trim() !== "" &&
+    formData.status.trim() !== "" &&
+    (isSubCategory ? formData.parentCategoryId.trim() !== "" : true)
   return (
     <>
       <Dialog open={isOpen} onOpenChange={(open) => !open && handleAttemptClose()}>
         <DialogContent className="p-0 gap-0 sm:max-w-[600px] overflow-hidden bg-white rounded-md">
           <DialogHeader className="flex flex-row items-center justify-between px-6 py-4 border-b">
-            <DialogTitle className="text-xl font-bold">{isCopying ? "Copy Add-on Category" : isEditing ? "Edit Add-on Category" : "Create Add-on Category"}</DialogTitle>
+            <DialogTitle className="text-xl font-bold">
+              {isCopying 
+                ? isSubCategory ? "Copy Add-on Sub Category" : "Copy Add-on Category"
+                : isEditing 
+                  ? isSubCategory ? "Edit Add-on Sub Category" : "Edit Add-on Category"
+                  : isSubCategory ? "Create Add-on Sub Category" : "Create Add-on Category"
+              }
+            </DialogTitle>
             <Button variant="ghost" size="icon" onClick={handleAttemptClose} className="h-8 w-8">
               <X className="h-5 w-5" />
             </Button>
@@ -247,7 +300,7 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
             {/* Add-on Details Section */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="font-medium">Add-on Category Details</span>
+                <span className="font-medium">{isSubCategory ? "Add-on Sub Category Details" : "Add-on Category Details"}</span>
                 <Info className="h-4 w-4 text-gray-400" />
               </div>
               <Switch
@@ -259,8 +312,29 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
 
             {addOnDetailsEnabled && (
               <div className="space-y-4">
+                {isSubCategory && (
+                  <Select 
+                    value={formData.parentCategoryId} 
+                    onValueChange={(value) => handleInputChange("parentCategoryId", value)}
+                  >
+                    <SelectTrigger className="h-12">
+                      <SelectValue placeholder="Select Parent Category *" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {isLoadingCategoriesForSelect ? (
+                        <SelectItem value="loading" disabled>Loading categories...</SelectItem>
+                      ) : (
+                        addOnCategoriesForSelect.map((category) => (
+                          <SelectItem key={category.id} value={category.id.toString()}>
+                            {category.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                )}
                 <Input
-                  placeholder={formData.createNewSubCategory ? "Sub-Category Name *" : "Add-on Name *"}
+                  placeholder={isSubCategory ? "Sub-Category Name *" : "Category Name *"}
                   className="h-12"
                   value={formData.name}
                   onChange={(e) => handleInputChange("name", e.target.value)}
@@ -268,16 +342,14 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
                   required
                 />
                 <Input
-                  placeholder={formData.createNewSubCategory ? "Sub-Category Code" : "Add-on Code"}
+                  placeholder={isSubCategory ? "Sub-Category Code" : "Category Code"}
                   className="h-12"
                   value={formData.code}
                   onChange={(e) => handleInputChange("code", e.target.value)}
                   validationState={formData.code.trim() ? "valid" : "default"}
                 />
-              
-
                 <Input
-                  placeholder={formData.createNewSubCategory ? "Sub-Category Sequence" : "Sequence"}
+                  placeholder={isSubCategory ? "Sub-Category Sequence" : "Sequence"}
                   type="number"
                   className="h-12"
                   value={formData.sequence}
@@ -287,7 +359,7 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
                 <Select value={formData.status} onValueChange={(value) => handleInputChange("status", value)}>
                   <SelectTrigger className="h-12">
                     <SelectValue
-                      placeholder={formData.createNewSubCategory ? "Sub-Category Status *" : "Select Status *"}
+                      placeholder={isSubCategory ? "Sub-Category Status *" : "Select Status *"}
                     />
                   </SelectTrigger>
                   <SelectContent>
@@ -353,17 +425,15 @@ export function AddAddOnCategoryModal({ isOpen, onClose, onHasChangesChange, add
             <Button
               variant="default"
               onClick={handleSave}
-              disabled={!isFormValid || showAnimation}
+              disabled={!isFormValid || showAnimation || isDetailLoading}
             >
-              {showAnimation
+              {showAnimation || isDetailLoading
                 ? (isCopying ? "Copying..." : "Saving...")
                 : isCopying
-                    ? "Copy Add-on Category"
+                    ? isSubCategory ? "Copy Sub Category" : "Copy Category"
                     : isEditing
-                      ? "Update Add-on"
-                      : formData.createNewSubCategory
-                    ? "Create Sub-Category & Add-on"
-                    : "Save Add-on Category"}
+                      ? isSubCategory ? "Update Sub Category" : "Update Category"
+                      : isSubCategory ? "Create Sub Category" : "Create Category"}
             </Button>
           </div>
         </DialogContent>

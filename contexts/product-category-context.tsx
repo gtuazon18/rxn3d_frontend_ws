@@ -75,6 +75,13 @@ type ProductCategoryContextType = {
     sortCol?: string | null,
     sortDir?: "asc" | "desc" | null,
   ) => Promise<void>
+  fetchSubcategories: (
+    page?: number,
+    perPage?: number,
+    query?: string,
+    sortCol?: string | null,
+    sortDir?: "asc" | "desc" | null,
+  ) => Promise<void>
   setSearchQuery: (query: string) => void
   setSortColumn: (column: string | null) => void
   setSortDirection: (direction: "asc" | "desc" | null) => void
@@ -97,6 +104,7 @@ type ProductCategoryContextType = {
   bulkDeleteCategories: (ids: number[]) => Promise<void> // Assuming a single endpoint for bulk delete
   clearMessages: () => void
   getSubCategoryDetail: (id: number) => Promise<ProductCategory | null>
+  getCategoryDetail: (id: number) => Promise<ProductCategory | null>
 
   // New: all categories API
   allCategories: ProductCategoryApi[]
@@ -234,7 +242,73 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
     return token
   }
 
+  // Fetch categories only (top-level, no parent_id)
   const fetchCategories = useCallback(
+    async (page = 1, perPage = 25, query = searchQuery, sortCol = sortColumn, sortDir = sortDirection) => {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const token = getAuthToken()
+        const params = new URLSearchParams({
+          page: page.toString(),
+          per_page: perPage.toString(),
+        })
+        if (query) params.append("q", query)
+        if (sortCol && sortDir) {
+          params.append("order_by", sortCol)
+          params.append("sort_by", sortDir)
+        } else {
+          params.append("order_by", "name") // Default sort
+          params.append("sort_by", "asc")
+        }
+
+        // Pass customer_id if customerId is defined
+        if (customerId) {
+          params.append("customer_id", customerId.toString())
+        }
+
+        const response = await fetch(`${API_BASE_URL}/library/categories?${params.toString()}&lang=${currentLanguage}`, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        })
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}))
+          throw new Error(errData.message || `Failed to fetch categories (status ${response.status})`)
+        }
+        const responseData = await response.json();
+        const categories = (responseData.data.data || []).map((category: any) => ({
+          id: category.id,
+          name: category.name,
+          code: category.code,
+          type: category.type,
+          sequence: category.sequence,
+          status: category.status,
+          parent_id: null, // Categories have no parent
+          case_pan_id: category.case_pan_id || null,
+          color_code: category?.case_pan?.color_code || null,
+          created_at: category.created_at,
+          updated_at: category.updated_at,
+          all_labs: 'All Labs',
+          is_custom: category.is_custom,
+          image_url: category.image_url,
+        }));
+        setCategories(categories);
+        setPagination(responseData.data.pagination || defaultPagination);
+      } catch (err: any) {
+        console.error("Error fetching categories:", err)
+        setError(err.message)
+        toast({ title: "Error", description: err.message || "Failed to fetch categories.", variant: "destructive" })
+        setCategories([])
+        setPagination(defaultPagination)
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [searchQuery, sortColumn, sortDirection, toast, currentLanguage, isLabAdmin, customerId],
+  )
+
+  // Fetch subcategories only (with parent_id)
+  const fetchSubcategories = useCallback(
     async (page = 1, perPage = 25, query = searchQuery, sortCol = sortColumn, sortDir = sortDirection) => {
       setIsLoading(true)
       setError(null)
@@ -264,38 +338,39 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         })
         if (!response.ok) {
           const errData = await response.json().catch(() => ({}))
-          throw new Error(errData.message || `Failed to fetch categories (status ${response.status})`)
+          throw new Error(errData.message || `Failed to fetch subcategories (status ${response.status})`)
         }
         const responseData = await response.json();
-        const subcategories = responseData.data.data.map((subcategory: any) => ({
+        const subcategories = (responseData.data.data || []).map((subcategory: any) => ({
           id: subcategory.id,
           sub_name: subcategory.name,
           name: subcategory.category?.name,
-          code: subcategory.category?.code,
+          code: subcategory.code || subcategory.category?.code,
           type: subcategory.type,
-          sequence: subcategory.category?.sequence,
+          sequence: subcategory.sequence || subcategory.category?.sequence,
           status: subcategory.status,
-          parent_id: subcategory.category?.id,
-          case_pan_id: subcategory.case_pan?.id || null,
+          parent_id: subcategory.category_id || subcategory.category?.id,
+          case_pan_id: subcategory.case_pan_id || subcategory.case_pan?.id || null,
           color_code: subcategory?.case_pan?.color_code || null,
           created_at: subcategory.created_at,
           updated_at: subcategory.updated_at,
           all_labs: 'All Labs',
-          is_custom: subcategory.is_custom, // <-- add this line
+          is_custom: subcategory.is_custom,
+          image_url: subcategory.image_url,
         }));
         setCategories(subcategories);
         setPagination(responseData.data.pagination || defaultPagination);
       } catch (err: any) {
-        console.error("Error fetching categories:", err)
+        console.error("Error fetching subcategories:", err)
         setError(err.message)
-        toast({ title: "Error", description: err.message || "Failed to fetch categories.", variant: "destructive" })
+        toast({ title: "Error", description: err.message || "Failed to fetch subcategories.", variant: "destructive" })
         setCategories([])
         setPagination(defaultPagination)
       } finally {
         setIsLoading(false)
       }
     },
-    [searchQuery, sortColumn, sortDirection, toast, currentLanguage, isLabAdmin, customerId], // Include current state values that influence the fetch
+    [searchQuery, sortColumn, sortDirection, toast, currentLanguage, isLabAdmin, customerId],
   )
 
   const fetchParentDropdownCategories = useCallback(async () => {
@@ -303,20 +378,31 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
     try {
       const token = getAuthToken()
       const response = await fetch(
-        `${API_BASE_URL}/library/subcategories?per_page=10&status=Active&lang=${currentLanguage}`,
+        `${API_BASE_URL}/library/categories?per_page=100&status=Active&lang=${currentLanguage}`,
         {
           method: "GET",
           headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         }
       )
-      if (!response.ok) throw new Error("Failed to fetch subcategories for dropdown.")
+      if (!response.ok) throw new Error("Failed to fetch categories for dropdown.")
       const responseData = await response.json()
-      // Handle the nested structure: responseData.data.data contains the subcategories array
-      const subcategories = responseData.data?.data || []
-      setParentDropdownCategories(subcategories)
+      // Handle the nested structure: responseData.data.data contains the categories array
+      const categories = (responseData.data?.data || []).map((cat: any) => ({
+        id: cat.id,
+        name: cat.name,
+        code: cat.code,
+        type: cat.type,
+        sequence: cat.sequence,
+        status: cat.status,
+        parent_id: null,
+        case_pan_id: cat.case_pan_id || null,
+        created_at: cat.created_at,
+        updated_at: cat.updated_at,
+      }))
+      setParentDropdownCategories(categories)
     } catch (err: any) {
-      console.error("Error fetching subcategories for dropdown:", err)
-      toast({ title: "Error", description: "Failed to load subcategories for dropdown.", variant: "destructive" })
+      console.error("Error fetching categories for dropdown:", err)
+      toast({ title: "Error", description: "Failed to load categories for dropdown.", variant: "destructive" })
       setParentDropdownCategories([])
     } finally {
       setIsLoadingParentDropdown(false)
@@ -337,7 +423,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
       const token = getAuthToken()
       const bodyPayload = {
         ...payload,
-        ...(isLabAdmin && customerId ? { customer_id: customerId } : {}),
+        ...(customerId ? { customer_id: customerId } : {}),
       }
       const response = await fetch(endpoint, {
         method: "POST",
@@ -405,7 +491,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         : `${API_BASE_URL}/library/categories/${id}`
       const bodyPayload = {
         ...payload,
-        ...(isLabAdmin && customerId ? { customer_id: customerId } : {}),
+        ...(customerId ? { customer_id: customerId } : {}),
       }
       const response = await fetch(apiEndpoint, {
         method: "PUT",
@@ -447,7 +533,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
       let endpoint = isSub
         ? `${API_BASE_URL}/library/subcategories/${id}`
         : `${API_BASE_URL}/library/categories/${id}`
-      if (isLabAdmin && customerId) {
+      if (customerId) {
         endpoint += `?customer_id=${customerId}`
       }
       const response = await fetch(endpoint, {
@@ -487,7 +573,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
       const token = getAuthToken()
       const bodyPayload = {
         ids,
-        ...(isLabAdmin && customerId ? { customer_id: customerId } : {}),
+        ...(customerId ? { customer_id: customerId } : {}),
       }
       const response = await fetch(`${API_BASE_URL}/library/categories/bulk-delete`, {
         method: "DELETE",
@@ -542,6 +628,46 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
       } catch (err: any) {
         console.error("Error fetching subcategory detail:", err)
         toast({ title: "Error", description: err.message || "Failed to fetch subcategory detail.", variant: "destructive" })
+        return null
+      }
+    },
+    [currentLanguage, toast]
+  )
+
+  const getCategoryDetail = useCallback(
+    async (id: number): Promise<ProductCategory | null> => {
+      try {
+        const token = getAuthToken()
+        const response = await fetch(
+          `${API_BASE_URL}/library/categories/${id}?lang=${currentLanguage}`,
+          {
+            method: "GET",
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          }
+        )
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}))
+          throw new Error(errData.message || `Failed to fetch category detail (status ${response.status})`)
+        }
+        const result = await response.json()
+        const category = result.data
+        return {
+          id: category.id,
+          name: category.name,
+          code: category.code,
+          type: category.type,
+          sequence: category.sequence,
+          status: category.status,
+          parent_id: null,
+          case_pan_id: category.case_pan_id || null,
+          created_at: category.created_at,
+          updated_at: category.updated_at,
+          is_custom: category.is_custom,
+          image_url: category.image_url,
+        } as ProductCategory
+      } catch (err: any) {
+        console.error("Error fetching category detail:", err)
+        toast({ title: "Error", description: err.message || "Failed to fetch category detail.", variant: "destructive" })
         return null
       }
     },
@@ -628,7 +754,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         })
         
         // Add customer_id if provided, otherwise use context customerId for lab admin
-        const customerIdToUse = passedCustomerId || (isLabAdmin && customerId ? customerId : undefined)
+        const customerIdToUse = passedCustomerId || customerId || undefined
         if (customerIdToUse) {
           params.append("customer_id", customerIdToUse.toString())
         }
@@ -706,6 +832,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         sortDirection,
         selectedItems,
         fetchCategories,
+        fetchSubcategories,
         setSearchQuery,
         setSortColumn,
         setSortDirection,
@@ -724,6 +851,7 @@ export const ProductCategoryProvider: React.FC<{ children: React.ReactNode }> = 
         bulkDeleteCategories,
         clearMessages,
         getSubCategoryDetail,
+        getCategoryDetail,
         // --- NEW: all categories API ---
         allCategories,
         allCategoriesLoading,

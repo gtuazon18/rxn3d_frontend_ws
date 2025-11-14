@@ -89,7 +89,7 @@ interface ApiResponse<T> {
 type AnimationType = "creating" | "updating" | "deleting" | "success" | "error" | "loading"
 
 interface AddOnsContextState {
-  // Add-ons
+  // Add-ons (for backward compatibility, but will be used for categories)
   addOns: AddOn[]
   fetchAddOns: (
     page?: number,
@@ -98,12 +98,47 @@ interface AddOnsContextState {
     sortColKey?: keyof AddOn | null | undefined,
     sortDir?: "asc" | "desc"
   ) => Promise<void>
+  // Categories
+  addOnCategories: AddOnCategory[]
+  fetchAddOnCategories: (
+    page?: number,
+    limit?: number,
+    search?: string,
+    sortColKey?: string | null,
+    sortDir?: "asc" | "desc"
+  ) => Promise<void>
+  addOnCategoriesPagination: PaginatedResponse<AddOnCategory>["pagination"] | null
+  isLoadingAddOnCategories: boolean
+  addOnCategoriesError: string | null
+  getAddOnCategoryDetail: (id: number) => Promise<AddOnCategory | null>
+  // Subcategories
+  addOnSubcategories: AddOnSubCategory[]
+  fetchAddOnSubcategories: (
+    page?: number,
+    limit?: number,
+    search?: string,
+    sortColKey?: string | null,
+    sortDir?: "asc" | "desc"
+  ) => Promise<void>
+  addOnSubcategoriesPagination: PaginatedResponse<AddOnSubCategory>["pagination"] | null
+  isLoadingAddOnSubcategories: boolean
+  addOnSubcategoriesError: string | null
+  getAddOnSubcategoryDetail: (id: number) => Promise<AddOnSubCategory | null>
   createAddOn: (data: Omit<AddOn, "id" | "subcategory" | "category_name" | "subcategory_name">) => Promise<AddOn | null>
   updateAddOn: (
     id: number,
     data: Partial<Omit<AddOn, "id" | "subcategory" | "category_name" | "subcategory_name">>,
   ) => Promise<AddOn | null>
-  deleteAddOn: (id: number) => Promise<boolean>
+  createAddOnCategory: (data: Omit<AddOnCategory, "id" | "subcategories" | "created_at" | "updated_at">) => Promise<AddOnCategory | null>
+  updateAddOnCategory: (
+    id: number,
+    data: Partial<Omit<AddOnCategory, "id" | "subcategories" | "created_at" | "updated_at">>,
+  ) => Promise<AddOnCategory | null>
+  updateAddOnSubCategory: (
+    id: number,
+    data: Partial<Omit<AddOnSubCategory, "id" | "category" | "created_at" | "updated_at">>,
+  ) => Promise<AddOnSubCategory | null>
+  deleteAddOn: (id: number, isSubcategory?: boolean) => Promise<boolean>
   isLoadingAddOns: boolean
   addOnError: string | null
   addOnPagination: PaginatedResponse<AddOn>["pagination"] | null
@@ -166,6 +201,18 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
   const [addOnPagination, setAddOnPagination] = useState<PaginatedResponse<AddOn>["pagination"] | null>(null)
 
   // Categories state
+  const [addOnCategories, setAddOnCategories] = useState<AddOnCategory[]>([])
+  const [isLoadingAddOnCategories, setIsLoadingAddOnCategories] = useState(false)
+  const [addOnCategoriesError, setAddOnCategoriesError] = useState<string | null>(null)
+  const [addOnCategoriesPagination, setAddOnCategoriesPagination] = useState<PaginatedResponse<AddOnCategory>["pagination"] | null>(null)
+
+  // Subcategories state
+  const [addOnSubcategories, setAddOnSubcategories] = useState<AddOnSubCategory[]>([])
+  const [isLoadingAddOnSubcategories, setIsLoadingAddOnSubcategories] = useState(false)
+  const [addOnSubcategoriesError, setAddOnSubcategoriesError] = useState<string | null>(null)
+  const [addOnSubcategoriesPagination, setAddOnSubcategoriesPagination] = useState<PaginatedResponse<AddOnSubCategory>["pagination"] | null>(null)
+
+  // Categories for dropdowns state
   const [addOnCategoriesForSelect, setAddOnCategoriesForSelect] = useState<AddOnCategory[]>([])
   const [isLoadingCategoriesForSelect, setIsLoadingCategoriesForSelect] = useState(false)
 
@@ -211,7 +258,32 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
   }
   const userRole = getUserRole()
   const isLabAdmin = userRole === "lab_admin"
-  const customerId = isLabAdmin ? user?.customers?.find((customer) => customer.id)?.id : undefined
+  const isSuperAdmin = userRole === "superadmin"
+  
+  // Get customerId from localStorage (similar to product category context)
+  const getCustomerId = (): number | null => {
+    if (typeof window === "undefined") return null
+    
+    if (isLabAdmin || isSuperAdmin) {
+      // For lab_admin or superadmin roles, use customer_id from localStorage
+      const storedCustomerId = localStorage.getItem("customerId")
+      if (storedCustomerId) {
+        return parseInt(storedCustomerId, 10)
+      }
+      // Fallback to user.customers if not found in localStorage
+      if (user?.customers?.length) {
+        return user.customers[0]?.id
+      }
+    } else {
+      // For other roles, use selectedLabId from localStorage as customer_id
+      const storedLabId = localStorage.getItem("selectedLabId")
+      if (storedLabId) {
+        return parseInt(storedLabId, 10)
+      }
+    }
+    return null
+  }
+  const customerId = getCustomerId()
 
   const triggerAnimation = useCallback((type: AnimationType, message = "", duration = 3000) => {
     setAnimationType(type)
@@ -303,8 +375,8 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
           params.append("order_by", sortColKey as string)
           params.append("sort_direction", sortDir)
         }
-        // Pass customer_id if isLabAdmin and customerId is defined
-        if (isLabAdmin && customerId) {
+        // Pass customer_id if customerId is defined (for lab_admin, superadmin, or other roles)
+        if (customerId) {
           params.append("customer_id", customerId.toString())
         }
 
@@ -358,9 +430,9 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
     triggerAnimation("creating", "Creating add-on category...") 
 
     try {
-      // Add customer_id if lab_admin
-      let payload = { ...data }
-      if (isLabAdmin && customerId) {
+      // Add customer_id if customerId is defined
+      let payload: any = { ...data }
+      if (customerId) {
         payload.customer_id = customerId
       }
 
@@ -405,9 +477,9 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
     triggerAnimation("updating", "Updating add-on...")
 
     try {
-      // Add customer_id if lab_admin
-      let payload = { ...data }
-      if (isLabAdmin && customerId) {
+      // Add customer_id if customerId is defined
+      let payload: any = { ...data }
+      if (customerId) {
         payload.customer_id = customerId
       }
 
@@ -435,16 +507,17 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const deleteAddOn = async (id: number) => {
+  const deleteAddOn = async (id: number, isSubcategory: boolean = false) => {
     const headers = getAuthHeaders()
     if (!headers) return false
 
-    triggerAnimation("deleting", "Deleting add-on...")
+    triggerAnimation("deleting", isSubcategory ? "Deleting add-on subcategory..." : "Deleting add-on category...")
 
     try {
-      // Add customer_id as query param if lab_admin
-      let url = `${API_BASE_URL}/library/addon-categories/${id}`
-      if (isLabAdmin && customerId) {
+      // Add customer_id as query param if customerId is defined
+      const endpoint = isSubcategory ? "addon-subcategories" : "addon-categories"
+      let url = `${API_BASE_URL}/library/${endpoint}/${id}`
+      if (customerId) {
         url += `?customer_id=${customerId}`
       }
 
@@ -454,8 +527,13 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
       })
 
       if (response.status === 204) {
-        triggerAnimation("success", "Add-on deleted successfully!")
-        fetchAddOns(currentPage, itemsPerPage, searchQuery, sortColumn as string, sortDirection)
+        triggerAnimation("success", isSubcategory ? "Add-on subcategory deleted successfully!" : "Add-on category deleted successfully!")
+        // Refresh the appropriate list
+        if (isSubcategory) {
+          fetchAddOnSubcategories(currentPage, itemsPerPage, searchQuery, sortColumn as string, sortDirection)
+        } else {
+          fetchAddOnCategories(currentPage, itemsPerPage, searchQuery, sortColumn as string, sortDirection)
+        }
         return true
       }
 
@@ -464,16 +542,144 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
       if (!response.ok || !result.status) {
         const errorData = result.errors
           ? { errors: result.errors, message: result.message }
-          : { message: result.message || "Failed to delete add-on" }
+          : { message: result.message || `Failed to delete add-on ${isSubcategory ? "subcategory" : "category"}` }
         throw { response: { data: errorData, status: response.status } }
       }
 
-      triggerAnimation("success", result.message || "Add-on deleted successfully!")
-      fetchAddOns(currentPage, itemsPerPage, searchQuery, sortColumn as string, sortDirection)
+      triggerAnimation("success", result.message || (isSubcategory ? "Add-on subcategory deleted successfully!" : "Add-on category deleted successfully!"))
+      // Refresh the appropriate list
+      if (isSubcategory) {
+        fetchAddOnSubcategories(currentPage, itemsPerPage, searchQuery, sortColumn as string, sortDirection)
+      } else {
+        fetchAddOnCategories(currentPage, itemsPerPage, searchQuery, sortColumn as string, sortDirection)
+      }
       return true
     } catch (error: any) {
-      handleApiError(error, "delete add-on")
+      handleApiError(error, `delete add-on ${isSubcategory ? "subcategory" : "category"}`)
       return false
+    }
+  }
+
+  // Create addon category
+  const createAddOnCategory = async (data: Omit<AddOnCategory, "id" | "subcategories" | "created_at" | "updated_at">) => {
+    const headers = getAuthHeaders()
+    if (!headers) return null
+
+    triggerAnimation("creating", "Creating add-on category...")
+
+    try {
+      // Add customer_id if customerId is defined
+      let payload: any = { ...data }
+      if (customerId) {
+        payload.customer_id = customerId
+      }
+
+      const response = await fetch(`${API_BASE_URL}/library/addon-categories`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+      })
+
+      const result: ApiResponse<AddOnCategory> = await response.json()
+
+      if (!response.ok || !result.status) {
+        const errorData = result.errors
+          ? { errors: result.errors, message: result.message }
+          : { message: result.message || "Failed to create add-on category" }
+        throw { response: { data: errorData, status: response.status } }
+      }
+
+      triggerAnimation("success", result.message || "Add-on category created successfully!")
+      fetchAddOnCategories(currentPage, itemsPerPage, searchQuery, sortColumn as string, sortDirection)
+      fetchAddOnCategoriesForSelect()
+      return result.data
+    } catch (error: any) {
+      handleApiError(error, "create add-on category")
+      return null
+    }
+  }
+
+  // Update addon category
+  const updateAddOnCategory = async (
+    id: number,
+    data: Partial<Omit<AddOnCategory, "id" | "subcategories" | "created_at" | "updated_at">>,
+  ) => {
+    const headers = getAuthHeaders()
+    if (!headers) return null
+
+    triggerAnimation("updating", "Updating add-on category...")
+
+    try {
+      // Add customer_id if customerId is defined
+      let payload: any = { ...data }
+      if (customerId) {
+        payload.customer_id = customerId
+      }
+
+      const response = await fetch(`${API_BASE_URL}/library/addon-categories/${id}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify(payload),
+      })
+
+      const result: ApiResponse<AddOnCategory> = await response.json()
+
+      if (!response.ok || !result.status) {
+        const errorData = result.errors
+          ? { errors: result.errors, message: result.message }
+          : { message: result.message || "Failed to update add-on category" }
+        throw { response: { data: errorData, status: response.status } }
+      }
+
+      triggerAnimation("success", result.message || "Add-on category updated successfully!")
+      fetchAddOnCategories(currentPage, itemsPerPage, searchQuery, sortColumn as string, sortDirection)
+      fetchAddOnCategoriesForSelect()
+      return result.data
+    } catch (error: any) {
+      handleApiError(error, "update add-on category")
+      return null
+    }
+  }
+
+  // Update addon subcategory
+  const updateAddOnSubCategory = async (
+    id: number,
+    data: Partial<Omit<AddOnSubCategory, "id" | "category" | "created_at" | "updated_at">>,
+  ) => {
+    const headers = getAuthHeaders()
+    if (!headers) return null
+
+    triggerAnimation("updating", "Updating add-on subcategory...")
+
+    try {
+      // Add customer_id if customerId is defined
+      let payload: any = { ...data }
+      if (customerId) {
+        payload.customer_id = customerId
+      }
+
+      const response = await fetch(`${API_BASE_URL}/library/addon-subcategories/${id}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify(payload),
+      })
+
+      const result: ApiResponse<AddOnSubCategory> = await response.json()
+
+      if (!response.ok || !result.status) {
+        const errorData = result.errors
+          ? { errors: result.errors, message: result.message }
+          : { message: result.message || "Failed to update add-on subcategory" }
+        throw { response: { data: errorData, status: response.status } }
+      }
+
+      triggerAnimation("success", result.message || "Add-on subcategory updated successfully!")
+      fetchAddOnSubcategories(currentPage, itemsPerPage, searchQuery, sortColumn as string, sortDirection)
+      fetchAddOnCategoriesForSelect()
+      return result.data
+    } catch (error: any) {
+      handleApiError(error, "update add-on subcategory")
+      return null
     }
   }
 
@@ -485,10 +691,16 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
     triggerAnimation("creating", "Creating sub-category...")
 
     try {
+      // Add customer_id if customerId is defined
+      let payload: any = { ...data }
+      if (customerId) {
+        payload.customer_id = customerId
+      }
+
       const response = await fetch(`${API_BASE_URL}/library/addon-subcategories`, {
         method: "POST",
         headers,
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       })
 
       const result: ApiResponse<AddOnSubCategory> = await response.json()
@@ -502,6 +714,7 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
 
       triggerAnimation("success", result.message || "Add-on Sub-category created successfully!")
       setSuccessMessage(`Successfully created ${data.name}`)
+      fetchAddOnSubcategories(currentPage, itemsPerPage, searchQuery, sortColumn as string, sortDirection)
       fetchAddOnCategoriesForSelect()
       return result.data
     } catch (error: any) {
@@ -513,6 +726,200 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
       return null
     }
   }
+
+  // Fetch addon categories only (top-level, no parent_id)
+  const fetchAddOnCategories = useCallback(
+    async (
+      page = currentPage,
+      limit = itemsPerPage,
+      search = searchQuery,
+      sortColKey = sortColumn,
+      sortDir = sortDirection,
+    ) => {
+      const headers = getAuthHeaders()
+      if (!headers) return
+
+      setIsLoadingAddOnCategories(true)
+      setAddOnCategoriesError(null)
+
+      try {
+        const params = new URLSearchParams({
+          page: page.toString(),
+          per_page: limit.toString(),
+        })
+
+        if (search) params.append("q", search)
+        if (sortColKey && typeof sortColKey === "string") {
+          params.append("order_by", sortColKey)
+          params.append("sort_direction", sortDir)
+        }
+        // Pass customer_id if customerId is defined (for lab_admin, superadmin, or other roles)
+        if (customerId) {
+          params.append("customer_id", customerId.toString())
+        }
+        params.append("language", currentLanguage)
+
+        const response = await fetch(`${API_BASE_URL}/library/addon-categories?${params.toString()}`, { headers })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw { response: { data: errorData, status: response.status } }
+        }
+
+        const result: ApiResponse<PaginatedResponse<AddOnCategory>> = await response.json()
+
+        if (result.status && result.data) {
+          setAddOnCategories(result.data.data)
+          setAddOnCategoriesPagination(result.data.pagination)
+          clearSelectedItems()
+        } else {
+          throw new Error(result.message || "Failed to fetch add-on categories")
+        }
+      } catch (error: any) {
+        const errorMsg = handleApiError(error, "fetch add-on categories")
+        setAddOnCategoriesError(errorMsg)
+        setAddOnCategories([])
+        setAddOnCategoriesPagination(null)
+      } finally {
+        setIsLoadingAddOnCategories(false)
+      }
+    },
+    [
+      currentPage,
+      itemsPerPage,
+      searchQuery,
+      sortColumn,
+      sortDirection,
+      getAuthHeaders,
+      clearSelectedItems,
+      currentLanguage,
+      isLabAdmin,
+      customerId,
+    ],
+  )
+
+  // Fetch addon subcategories only (with parent_id)
+  const fetchAddOnSubcategories = useCallback(
+    async (
+      page = currentPage,
+      limit = itemsPerPage,
+      search = searchQuery,
+      sortColKey = sortColumn,
+      sortDir = sortDirection,
+    ) => {
+      const headers = getAuthHeaders()
+      if (!headers) return
+
+      setIsLoadingAddOnSubcategories(true)
+      setAddOnSubcategoriesError(null)
+
+      try {
+        const params = new URLSearchParams({
+          page: page.toString(),
+          per_page: limit.toString(),
+        })
+
+        if (search) params.append("q", search)
+        if (sortColKey && typeof sortColKey === "string") {
+          params.append("order_by", sortColKey)
+          params.append("sort_direction", sortDir)
+        }
+        // Pass customer_id if customerId is defined (for lab_admin, superadmin, or other roles)
+        if (customerId) {
+          params.append("customer_id", customerId.toString())
+        }
+        params.append("language", currentLanguage)
+
+        const response = await fetch(`${API_BASE_URL}/library/addon-subcategories?${params.toString()}`, { headers })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw { response: { data: errorData, status: response.status } }
+        }
+
+        const result: ApiResponse<PaginatedResponse<AddOnSubCategory>> = await response.json()
+
+        if (result.status && result.data) {
+          setAddOnSubcategories(result.data.data)
+          setAddOnSubcategoriesPagination(result.data.pagination)
+          clearSelectedItems()
+        } else {
+          throw new Error(result.message || "Failed to fetch add-on subcategories")
+        }
+      } catch (error: any) {
+        const errorMsg = handleApiError(error, "fetch add-on subcategories")
+        setAddOnSubcategoriesError(errorMsg)
+        setAddOnSubcategories([])
+        setAddOnSubcategoriesPagination(null)
+      } finally {
+        setIsLoadingAddOnSubcategories(false)
+      }
+    },
+    [
+      currentPage,
+      itemsPerPage,
+      searchQuery,
+      sortColumn,
+      sortDirection,
+      getAuthHeaders,
+      clearSelectedItems,
+      currentLanguage,
+      isLabAdmin,
+      customerId,
+    ],
+  )
+
+  // Get addon category detail
+  const getAddOnCategoryDetail = useCallback(
+    async (id: number): Promise<AddOnCategory | null> => {
+      const headers = getAuthHeaders()
+      if (!headers) return null
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/library/addon-categories/${id}?language=${currentLanguage}`, {
+          headers,
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw { response: { data: errorData, status: response.status } }
+        }
+
+        const result: ApiResponse<AddOnCategory> = await response.json()
+        return result.status && result.data ? result.data : null
+      } catch (error: any) {
+        handleApiError(error, "fetch add-on category detail")
+        return null
+      }
+    },
+    [getAuthHeaders, currentLanguage, handleApiError],
+  )
+
+  // Get addon subcategory detail
+  const getAddOnSubcategoryDetail = useCallback(
+    async (id: number): Promise<AddOnSubCategory | null> => {
+      const headers = getAuthHeaders()
+      if (!headers) return null
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/library/addon-subcategories/${id}?language=${currentLanguage}`, {
+          headers,
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw { response: { data: errorData, status: response.status } }
+        }
+
+        const result: ApiResponse<AddOnSubCategory> = await response.json()
+        return result.status && result.data ? result.data : null
+      } catch (error: any) {
+        handleApiError(error, "fetch add-on subcategory detail")
+        return null
+      }
+    },
+    [getAuthHeaders, currentLanguage, handleApiError],
+  )
 
   // Categories operations
   const fetchAddOnCategoriesForSelect = useCallback(async () => {
@@ -691,7 +1098,7 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
 
   // Add to the contextValue object
   const contextValue: AddOnsContextState = {
-    // Add-ons
+    // Add-ons (for backward compatibility)
     addOns,
     fetchAddOns,
     createAddOn,
@@ -702,6 +1109,25 @@ export function AddOnsCategoryProvider({ children }: { children: ReactNode }) {
     addOnPagination,
 
     // Categories
+    addOnCategories,
+    fetchAddOnCategories,
+    addOnCategoriesPagination,
+    isLoadingAddOnCategories,
+    addOnCategoriesError,
+    getAddOnCategoryDetail,
+    createAddOnCategory,
+    updateAddOnCategory,
+
+    // Subcategories
+    addOnSubcategories,
+    fetchAddOnSubcategories,
+    addOnSubcategoriesPagination,
+    isLoadingAddOnSubcategories,
+    addOnSubcategoriesError,
+    getAddOnSubcategoryDetail,
+    updateAddOnSubCategory,
+
+    // Categories for dropdowns
     addOnCategoriesForSelect,
     fetchAddOnCategoriesForSelect,
     isLoadingCategoriesForSelect,

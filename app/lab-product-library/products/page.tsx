@@ -479,9 +479,9 @@ export default function ProductsPage() {
         {/* Actions Row */}
         <div className="flex flex-col sm:flex-row gap-3 sm:justify-between sm:items-center">
           <div className="flex flex-col sm:flex-row gap-3">
-            <Button className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors">
+            {/* <Button className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors">
               {t("Import from product library")}
-            </Button>
+            </Button> */}
             <Button
               className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
               onClick={() => {

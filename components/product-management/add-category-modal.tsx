@@ -50,6 +50,7 @@ export function AddCategoryModal({ isOpen, onClose, editId, isEdit, isSubCategor
     parentDropdownCategories,
     fetchParentDropdownCategories,
     getSubCategoryDetail, // <-- use the new API
+    getCategoryDetail, // <-- use the new API for categories
     user, // <-- get user from context
   } = useProductCategory()
 
@@ -101,12 +102,12 @@ export function AddCategoryModal({ isOpen, onClose, editId, isEdit, isSubCategor
     }
   }, [isEdit, isSubCategoryEdit, detailLoadedId])
 
-  // Always fetch detail in edit mode for subcategory
+  // Always fetch detail in edit mode for category or subcategory
   useEffect(() => {
     if (isOpen && isCopying && copyingCategory) {
       // Copying: use the provided copyingCategory data directly (no API call needed)
       setFormData({
-        name: copyingCategory.name || "",
+        name: copyingCategory.name || copyingCategory.sub_name || "",
         code: copyingCategory.code || "",
         type: copyingCategory.type || "Both",
         sequence: copyingCategory.sequence || 1,
@@ -129,44 +130,77 @@ export function AddCategoryModal({ isOpen, onClose, editId, isEdit, isSubCategor
       }
       fetchCasePans()
       fetchParentDropdownCategories()
-    } else if (isOpen && isEdit && isSubCategoryEdit && editId && !isCopying) {
+    } else if (isOpen && isEdit && editId && !isCopying) {
       // Editing: fetch detail from API
       setIsDetailLoading(true)
-      getSubCategoryDetail(editId).then((detail) => {
-        if (detail) {
-          setFormData({
-            name: detail.category?.name || detail.name, // <-- use category.name if present
-            code: detail.code,
-            type: detail.type,
-            sequence: detail.sequence,
-            status: detail.status,
-            parent_id: detail.parent_id ?? detail.category_id ?? null,
-            case_pan_id: detail.case_pan_id ?? null,
-          })
-          setIsSubCategory(true)
-          setDetailLoadedId(editId)
-          setIsCustomValue(detail.is_custom)
-          
-          // Set image if available
-          if (detail.image_url) {
-            setImageBase64(detail.image_url)
-            setImagePreview(detail.image_url)
-          } else {
-            setImageBase64(null)
-            setImagePreview(null)
+      if (isSubCategoryEdit) {
+        // Editing subcategory
+        getSubCategoryDetail(editId).then((detail) => {
+          if (detail) {
+            setFormData({
+              name: detail.sub_name || detail.name || "", // Use subcategory name (sub_name)
+              code: detail.code || "",
+              type: detail.type || "Both",
+              sequence: detail.sequence || 1,
+              status: detail.status || "Active",
+              parent_id: detail.parent_id ?? (detail as any).category_id ?? null,
+              case_pan_id: detail.case_pan_id ?? null,
+            })
+            setIsSubCategory(true)
+            setDetailLoadedId(editId)
+            setIsCustomValue((detail as any).is_custom)
+            
+            // Set image if available
+            if (detail.image_url) {
+              setImageBase64(detail.image_url)
+              setImagePreview(detail.image_url)
+            } else {
+              setImageBase64(null)
+              setImagePreview(null)
+            }
           }
-        }
-        setIsDetailLoading(false)
-      })
+          setIsDetailLoading(false)
+        })
+      } else {
+        // Editing category
+        getCategoryDetail(editId).then((detail) => {
+          if (detail) {
+            setFormData({
+              name: detail.name || "",
+              code: detail.code || "",
+              type: detail.type || "Both",
+              sequence: detail.sequence || 1,
+              status: detail.status || "Active",
+              parent_id: null, // Categories have no parent
+              case_pan_id: detail.case_pan_id ?? null,
+            })
+            setIsSubCategory(false)
+            setDetailLoadedId(editId)
+            setIsCustomValue((detail as any).is_custom)
+            
+            // Set image if available
+            if (detail.image_url) {
+              setImageBase64(detail.image_url)
+              setImagePreview(detail.image_url)
+            } else {
+              setImageBase64(null)
+              setImagePreview(null)
+            }
+          }
+          setIsDetailLoading(false)
+        })
+      }
       fetchCasePans()
       fetchParentDropdownCategories()
-    } else if (isOpen && (!isEdit || !isSubCategoryEdit) && !isCopying) {
-      // New category: reset form
+    } else if (isOpen && !isEdit && !isCopying) {
+      // New category/subcategory: reset form
       resetForm()
       setIsDetailLoading(false)
       setDetailLoadedId(null)
       setIsCustomValue(undefined)
       setDisableEditFields(false)
+      // If isSubCategoryEdit is true, default to subcategory mode
+      setIsSubCategory(isSubCategoryEdit || false)
       fetchCasePans()
       fetchParentDropdownCategories()
     }

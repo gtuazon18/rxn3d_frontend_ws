@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -19,6 +19,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { useToast } from "@/hooks/use-toast"
+import { getAuthToken } from "@/lib/auth-utils"
+import { useLanguage } from "@/contexts/language-context"
 import {
   Copy,
   Download,
@@ -72,12 +74,14 @@ const initialGrades: Grade[] = [
 ]
 
 export function Grades() {
-  const [grades, setGrades] = useState<Grade[]>(initialGrades)
+  const [grades, setGrades] = useState<Grade[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [selectedGrade, setSelectedGrade] = useState<Grade | null>(null)
+  const [isLoadingGrade, setIsLoadingGrade] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
     code: "",
@@ -85,10 +89,80 @@ export function Grades() {
     status: "Active" as "Active" | "Inactive",
   })
   const { toast } = useToast()
+  const { currentLanguage } = useLanguage()
+
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api"
+
+  // Get customerId from localStorage
+  const getCustomerId = (): number | null => {
+    if (typeof window === "undefined") return null
+    const storedCustomerId = localStorage.getItem("customerId")
+    if (storedCustomerId) {
+      return parseInt(storedCustomerId, 10)
+    }
+    return null
+  }
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(10)
+
+  // Fetch grades from API
+  const fetchGrades = useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const token = getAuthToken()
+      if (!token) {
+        toast({
+          title: "Authentication Error",
+          description: "Please log in to continue.",
+          variant: "destructive",
+        })
+        setIsLoading(false)
+        return
+      }
+
+      const customerId = getCustomerId()
+      let url = `${API_BASE_URL}/library/lab-grades?lang=${currentLanguage}`
+      if (customerId) {
+        url += `&customer_id=${customerId}`
+      }
+
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `Failed to fetch grades: ${response.statusText}`)
+      }
+
+      const result = await response.json()
+      
+      // Handle response structure - could be result.data or result.data.data
+      const gradesData = result.data?.data || result.data || []
+      setGrades(gradesData)
+    } catch (error: any) {
+      console.error("Error fetching grades:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to fetch grades.",
+        variant: "destructive",
+      })
+      setGrades([])
+    } finally {
+      setIsLoading(false)
+    }
+  }, [API_BASE_URL, currentLanguage, toast])
+
+  // Fetch grades on component mount
+  useEffect(() => {
+    fetchGrades()
+  }, [fetchGrades])
 
   // Reset form data when dialog opens/closes
   useEffect(() => {
@@ -102,17 +176,63 @@ export function Grades() {
     }
   }, [isAddDialogOpen])
 
-  // Set form data when editing
+  // Fetch grade details from API when editing
+  const fetchGradeById = useCallback(async (id: number) => {
+    setIsLoadingGrade(true)
+    try {
+      const token = getAuthToken()
+      if (!token) {
+        toast({
+          title: "Authentication Error",
+          description: "Please log in to continue.",
+          variant: "destructive",
+        })
+        setIsLoadingGrade(false)
+        return
+      }
+
+      const response = await fetch(`${API_BASE_URL}/library/lab-grades/${id}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `Failed to fetch grade: ${response.statusText}`)
+      }
+
+      const result = await response.json()
+      const gradeData = result.data
+
+      if (gradeData) {
+        setFormData({
+          name: gradeData.name || "",
+          code: gradeData.code || "",
+          description: gradeData.description || "",
+          status: gradeData.status || "Active",
+        })
+      }
+    } catch (error: any) {
+      console.error("Error fetching grade:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to fetch grade details.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoadingGrade(false)
+    }
+  }, [toast])
+
+  // Set form data when editing - fetch from API
   useEffect(() => {
     if (selectedGrade && isEditDialogOpen) {
-      setFormData({
-        name: selectedGrade.name,
-        code: selectedGrade.code,
-        description: selectedGrade.description,
-        status: selectedGrade.status,
-      })
+      fetchGradeById(selectedGrade.id)
     }
-  }, [selectedGrade, isEditDialogOpen])
+  }, [selectedGrade, isEditDialogOpen, fetchGradeById])
 
   // Filter grades based on search term and status filter
   const filteredGrades = grades.filter((grade) => {
@@ -140,58 +260,214 @@ export function Grades() {
   }, [searchTerm, statusFilter])
 
   // Add grade
-  const addGrade = () => {
-    const newGrade: Grade = {
-      id: Date.now(),
-      ...formData,
-    }
+  const addGrade = async () => {
+    try {
+      const token = getAuthToken()
+      if (!token) {
+        toast({
+          title: "Authentication Error",
+          description: "Please log in to continue.",
+          variant: "destructive",
+        })
+        return
+      }
 
-    setGrades([...grades, newGrade])
-    setIsAddDialogOpen(false)
-    toast({
-      title: "Grade Added",
-      description: `${formData.name} has been added successfully.`,
-    })
+      const customerId = getCustomerId()
+      let url = `${API_BASE_URL}/library/lab-grades`
+      const payload: any = {
+        name: formData.name,
+        code: formData.code,
+        description: formData.description,
+        status: formData.status,
+      }
+      if (customerId) {
+        payload.customer_id = customerId
+      }
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `Failed to add grade: ${response.statusText}`)
+      }
+
+      setIsAddDialogOpen(false)
+      toast({
+        title: "Grade Added",
+        description: `${formData.name} has been added successfully.`,
+      })
+      // Refresh the grades list
+      fetchGrades()
+    } catch (error: any) {
+      console.error("Error adding grade:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add grade.",
+        variant: "destructive",
+      })
+    }
   }
 
   // Edit grade
-  const editGrade = () => {
+  const editGrade = async () => {
     if (!selectedGrade) return
 
-    const updatedGrades = grades.map((grade) => (grade.id === selectedGrade.id ? { ...grade, ...formData } : grade))
+    try {
+      const token = getAuthToken()
+      if (!token) {
+        toast({
+          title: "Authentication Error",
+          description: "Please log in to continue.",
+          variant: "destructive",
+        })
+        return
+      }
 
-    setGrades(updatedGrades)
-    setIsEditDialogOpen(false)
-    toast({
-      title: "Grade Updated",
-      description: `${formData.name} has been updated successfully.`,
-    })
+      const customerId = getCustomerId()
+      let url = `${API_BASE_URL}/library/lab-grades/${selectedGrade.id}`
+      const payload: any = {
+        name: formData.name,
+        code: formData.code,
+        description: formData.description,
+        status: formData.status,
+      }
+      if (customerId) {
+        payload.customer_id = customerId
+      }
+
+      const response = await fetch(url, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `Failed to update grade: ${response.statusText}`)
+      }
+
+      setIsEditDialogOpen(false)
+      toast({
+        title: "Grade Updated",
+        description: `${formData.name} has been updated successfully.`,
+      })
+      // Refresh the grades list
+      fetchGrades()
+    } catch (error: any) {
+      console.error("Error updating grade:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update grade.",
+        variant: "destructive",
+      })
+    }
   }
 
   // Delete grade
-  const deleteGrade = (id: number) => {
-    const updatedGrades = grades.filter((grade) => grade.id !== id)
-    setGrades(updatedGrades)
-    toast({
-      title: "Grade Deleted",
-      description: "The grade has been deleted successfully.",
-    })
+  const deleteGrade = async (id: number) => {
+    try {
+      const token = getAuthToken()
+      if (!token) {
+        toast({
+          title: "Authentication Error",
+          description: "Please log in to continue.",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const response = await fetch(`${API_BASE_URL}/library/lab-grades/${id}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `Failed to delete grade: ${response.statusText}`)
+      }
+
+      toast({
+        title: "Grade Deleted",
+        description: "The grade has been deleted successfully.",
+      })
+      // Refresh the grades list
+      fetchGrades()
+    } catch (error: any) {
+      console.error("Error deleting grade:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete grade.",
+        variant: "destructive",
+      })
+    }
   }
 
   // Duplicate grade
-  const duplicateGrade = (grade: Grade) => {
-    const newGrade = {
-      ...grade,
-      id: Date.now(),
-      name: `${grade.name} (Copy)`,
-      code: `${grade.code}C`,
-    }
+  const duplicateGrade = async (grade: Grade) => {
+    try {
+      const token = getAuthToken()
+      if (!token) {
+        toast({
+          title: "Authentication Error",
+          description: "Please log in to continue.",
+          variant: "destructive",
+        })
+        return
+      }
 
-    setGrades([...grades, newGrade])
-    toast({
-      title: "Grade Duplicated",
-      description: `${grade.name} has been duplicated successfully.`,
-    })
+      const customerId = getCustomerId()
+      let url = `${API_BASE_URL}/library/lab-grades`
+      const payload: any = {
+        name: `${grade.name} (Copy)`,
+        code: `${grade.code}C`,
+        description: grade.description,
+        status: grade.status,
+      }
+      if (customerId) {
+        payload.customer_id = customerId
+      }
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `Failed to duplicate grade: ${response.statusText}`)
+      }
+
+      toast({
+        title: "Grade Duplicated",
+        description: `${grade.name} has been duplicated successfully.`,
+      })
+      // Refresh the grades list
+      fetchGrades()
+    } catch (error: any) {
+      console.error("Error duplicating grade:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to duplicate grade.",
+        variant: "destructive",
+      })
+    }
   }
 
   // Export grades as CSV
@@ -220,40 +496,6 @@ export function Grades() {
     })
   }
 
-  // Load sample data
-  const loadSampleData = () => {
-    const sampleData: Grade[] = [
-      {
-        id: 5,
-        name: "Ultra Premium",
-        code: "ULTRA",
-        description: "Exceptional quality materials and finish",
-        status: "Active",
-      },
-      {
-        id: 6,
-        name: "Custom",
-        code: "CUST",
-        description: "Customized quality based on requirements",
-        status: "Active",
-      },
-    ]
-
-    setGrades([...grades, ...sampleData])
-    toast({
-      title: "Sample Data Loaded",
-      description: "Additional sample grades have been loaded.",
-    })
-  }
-
-  // Clear all grades
-  const clearGrades = () => {
-    setGrades([])
-    toast({
-      title: "Grades Cleared",
-      description: "All grade records have been cleared.",
-    })
-  }
 
   // Pagination controls
   const goToPage = (page: number) => {
@@ -300,10 +542,7 @@ export function Grades() {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Grades</h1>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={loadSampleData}>
-            Load Sample Data
-          </Button>
-          <Button variant="outline" onClick={exportCSV} disabled={filteredGrades.length === 0}>
+          <Button variant="outline" onClick={exportCSV} disabled={filteredGrades.length === 0 || isLoading}>
             <Download className="h-4 w-4 mr-2" />
             Export CSV
           </Button>
@@ -372,26 +611,6 @@ export function Grades() {
               </div>
             </DialogContent>
           </Dialog>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" disabled={grades.length === 0}>
-                <Trash2 className="h-4 w-4 mr-2" />
-                Clear Grades
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This action cannot be undone. This will permanently delete all grade records.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={clearGrades}>Continue</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
         </div>
       </div>
 
@@ -437,7 +656,13 @@ export function Grades() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {currentItems.length > 0 ? (
+              {isLoading ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                    Loading grades...
+                  </td>
+                </tr>
+              ) : currentItems.length > 0 ? (
                 currentItems.map((grade) => (
                   <tr key={grade.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-gray-900">{grade.name}</td>
@@ -601,58 +826,68 @@ export function Grades() {
           <DialogHeader>
             <DialogTitle>Edit Grade</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-name">Grade Name</Label>
-              <Input
-                id="edit-name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Enter grade name"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-code">Grade Code</Label>
-              <Input
-                id="edit-code"
-                value={formData.code}
-                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                placeholder="Enter grade code"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-description">Description</Label>
-              <Input
-                id="edit-description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Enter grade description"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-status">Status</Label>
-              <Select
-                value={formData.status}
-                onValueChange={(value) => setFormData({ ...formData, status: value as "Active" | "Inactive" })}
-              >
-                <SelectTrigger id="edit-status">
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Active">Active</SelectItem>
-                  <SelectItem value="Inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={editGrade} disabled={!formData.name || !formData.code}>
-              Update Grade
-            </Button>
-          </div>
+          {isLoadingGrade ? (
+            <div className="py-8 text-center text-gray-500">Loading grade details...</div>
+          ) : (
+            <>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-name">Grade Name</Label>
+                  <Input
+                    id="edit-name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Enter grade name"
+                    disabled={isLoadingGrade}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-code">Grade Code</Label>
+                  <Input
+                    id="edit-code"
+                    value={formData.code}
+                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                    placeholder="Enter grade code"
+                    disabled={isLoadingGrade}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-description">Description</Label>
+                  <Input
+                    id="edit-description"
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="Enter grade description"
+                    disabled={isLoadingGrade}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-status">Status</Label>
+                  <Select
+                    value={formData.status}
+                    onValueChange={(value) => setFormData({ ...formData, status: value as "Active" | "Inactive" })}
+                    disabled={isLoadingGrade}
+                  >
+                    <SelectTrigger id="edit-status">
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Active">Active</SelectItem>
+                      <SelectItem value="Inactive">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isLoadingGrade}>
+                  Cancel
+                </Button>
+                <Button onClick={editGrade} disabled={!formData.name || !formData.code || isLoadingGrade}>
+                  Update Grade
+                </Button>
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

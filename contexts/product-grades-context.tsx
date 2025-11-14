@@ -127,7 +127,32 @@ export const GradesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }
   const userRole = getUserRole()
   const isLabAdmin = userRole === "lab_admin"
-  const customerId = isLabAdmin ? user?.customers?.find((customer) => customer.id)?.id : undefined
+  const isSuperAdmin = userRole === "superadmin"
+  
+  // Get customerId from localStorage (similar to other contexts)
+  const getCustomerId = (): number | null => {
+    if (typeof window === "undefined") return null
+    
+    if (isLabAdmin || isSuperAdmin) {
+      // For lab_admin or superadmin roles, use customer_id from localStorage
+      const storedCustomerId = localStorage.getItem("customerId")
+      if (storedCustomerId) {
+        return parseInt(storedCustomerId, 10)
+      }
+      // Fallback to user.customers if not found in localStorage
+      if (user?.customers?.length) {
+        return user.customers[0]?.id
+      }
+    } else {
+      // For other roles, use selectedLabId from localStorage as customer_id
+      const storedLabId = localStorage.getItem("selectedLabId")
+      if (storedLabId) {
+        return parseInt(storedLabId, 10)
+      }
+    }
+    return null
+  }
+  const customerId = getCustomerId()
 
   const redirectToLogin = () => {
     localStorage.removeItem("user")
@@ -246,11 +271,16 @@ export const GradesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
 
       try {
-        let url = `${API_BASE_URL}/library/grades/${id}?lang=${currentLanguage}`
-        if (isLabAdmin && customerId) {
+        // Use lab-grades endpoint for lab_admin, grades endpoint for others
+        const endpoint = isLabAdmin ? "lab-grades" : "grades"
+        // Build URL with lang parameter
+        let url = `${API_BASE_URL}/library/${endpoint}/${id}?lang=${currentLanguage}`
+        // Always include customer_id if available (for both lab_admin and other roles)
+        if (customerId) {
           url += `&customer_id=${customerId}`
         }
 
+        console.log("Fetching grade detail from:", url)
         const response = await fetch(url, {
           method: "GET",
           headers: {
@@ -270,14 +300,16 @@ export const GradesProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
 
         const result = await response.json()
-        return result.data || null
+        const gradeData = result.data || null
+        console.log("Grade detail fetched successfully:", gradeData)
+        return gradeData
       } catch (err: any) {
         console.error("Error fetching grade detail:", err)
         setError(err.message || "Failed to fetch grade details")
         return null
       }
     },
-    [authToken, currentLanguage, isLabAdmin, customerId],
+    [authToken, currentLanguage, customerId, isLabAdmin],
   )
 
   const createGrade = useCallback(

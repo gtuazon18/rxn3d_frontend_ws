@@ -8,50 +8,48 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { AddCategoryModal } from "@/components/product-management/add-category-modal"
+import { AddAddOnCategoryModal } from "@/components/product-management/add-add-on-category-modal"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
-import { useProductCategory } from "@/contexts/product-category-context"
+import { useAddOns } from "@/contexts/product-add-on-category-context"
 import { useLanguage } from "@/contexts/language-context"
 import { useTranslation } from "react-i18next"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
-export default function ProductCategoryPage() {
+export default function AddOnsSubCategoryPage() {
   const {
-    categories,
-    pagination,
-    isLoading,
-    error, 
+    addOnSubcategories,
+    addOnSubcategoriesPagination,
+    isLoadingAddOnSubcategories,
+    addOnSubcategoriesError,
     searchQuery,
     sortColumn,
     sortDirection,
     selectedItems,
-    fetchCategories,
+    fetchAddOnSubcategories,
     setSearchQuery,
     setSortColumn,
     setSortDirection,
     setSelectedItems,
-    deleteCategory,
-    getCategoryDetail,
-  } = useProductCategory()
+    deleteAddOn,
+    getAddOnSubcategoryDetail,
+  } = useAddOns()
 
-  const [entriesPerPage, setEntriesPerPage] = useState(pagination.per_page.toString() || "25")
-  const [currentPage, setCurrentPage] = useState(pagination.current_page || 1)
+  const [entriesPerPage, setEntriesPerPage] = useState(addOnSubcategoriesPagination?.per_page?.toString() || "25")
+  const [currentPage, setCurrentPage] = useState(addOnSubcategoriesPagination?.current_page || 1)
   const [isAddCategoryModalOpen, setIsAddCategoryModalOpen] = useState(false)
-  const [editCategoryId, setEditCategoryId] = useState<number | null>(null)
+  const [editSubCategoryId, setEditSubCategoryId] = useState<number | null>(null)
   const [searchInput, setSearchInput] = useState(searchQuery)
-  const [disableAllFields, setDisableAllFields] = useState(false)
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{ id: number, name?: string } | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
-  const [isCustomNo, setIsCustomNo] = useState(false)
   const [isCopying, setIsCopying] = useState(false)
   const [copyingCategory, setCopyingCategory] = useState<any>(null)
   const { currentLanguage } = useLanguage();
   const { t } = useTranslation();
   
   useEffect(() => {
-    fetchCategories(currentPage, Number(entriesPerPage), searchQuery, sortColumn, sortDirection)
-  }, [currentPage, entriesPerPage, searchQuery, sortColumn, sortDirection, fetchCategories, currentLanguage])
+    fetchAddOnSubcategories(currentPage, Number(entriesPerPage), searchQuery, sortColumn as string, sortDirection)
+  }, [currentPage, entriesPerPage, searchQuery, sortColumn, sortDirection, fetchAddOnSubcategories, currentLanguage])
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -77,10 +75,10 @@ export default function ProductCategoryPage() {
       if (sortDirection === "asc") setSortDirection("desc")
       else if (sortDirection === "desc") {
         setSortColumn(null)
-        setSortDirection(null)
+        setSortDirection("asc")
       } else setSortDirection("asc")
     } else {
-      setSortColumn(columnKey)
+      setSortColumn(columnKey as any)
       setSortDirection("asc")
     }
     setCurrentPage(1)
@@ -97,7 +95,7 @@ export default function ProductCategoryPage() {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedItems(categories.map((category) => category.id))
+      setSelectedItems(addOnSubcategories.map((subcategory) => subcategory.id))
     } else {
       setSelectedItems([])
     }
@@ -111,86 +109,47 @@ export default function ProductCategoryPage() {
     }
   }
 
-  const getStatusBadgeClass = (status: string) => {
-    return status === "Active"
-      ? "bg-green-50 text-green-700 border-green-200"
-      : "bg-gray-50 text-gray-700 border-gray-200"
-  }
-
-  const getTypeBadgeClass = (type: string) => {
-    const typeMap: Record<string, string> = {
-      Upper: "bg-blue-50 text-blue-700 border-blue-200",
-      Lower: "bg-purple-50 text-purple-700 border-purple-200",
-      Both: "bg-green-50 text-green-700 border-green-200",
-    }
-    return typeMap[type] || "bg-gray-50 text-gray-700 border-gray-200"
-  }
-
-  const totalPages = pagination.last_page || 1
+  const totalPages = addOnSubcategoriesPagination?.last_page || 1
   const startEntry =
-    pagination.total > 0 ? Math.min(pagination.total, (currentPage - 1) * Number(entriesPerPage) + 1) : 0
-  const endEntry = pagination.total > 0 ? Math.min(pagination.total, currentPage * Number(entriesPerPage)) : 0
-
-  const handleModalClose = () => {
-    setIsAddCategoryModalOpen(false)
-    setEditCategoryId(null)
-    fetchCategories(currentPage, Number(entriesPerPage), searchQuery, sortColumn, sortDirection)
-  }
-
-  const getColorBadge = (color: string) => {
-    const colorMap: Record<string, string> = {
-      "#1162a8": "bg-[#1162a8] text-white",
-      "#cf0202": "bg-[#cf0202] text-white",
-      "#ffffff": "bg-[#ffffff] text-black border border-gray-300",
-      "#11a85d": "bg-[#11a85d] text-white",
-      "#a81180": "bg-[#a81180] text-white",
-      "#f6be2c": "bg-[#f6be2c] text-black",
-      "#119ba8": "bg-[#119ba8] text-white",
-    }
-
-    return colorMap[color?.toLowerCase()] || "bg-gray-300 text-black border border-gray-400"
-  }
+    addOnSubcategoriesPagination && addOnSubcategoriesPagination.total > 0 
+      ? Math.min(addOnSubcategoriesPagination.total, (currentPage - 1) * Number(entriesPerPage) + 1) 
+      : 0
+  const endEntry = addOnSubcategoriesPagination && addOnSubcategoriesPagination.total > 0 
+    ? Math.min(addOnSubcategoriesPagination.total, currentPage * Number(entriesPerPage)) 
+    : 0
 
   function handleEdit(id: number): void {
-    const category = categories.find((cat) => cat.id === id)
-    setEditCategoryId(id)
+    const subcategory = addOnSubcategories.find((sub) => sub.id === id)
+    setEditSubCategoryId(id)
     setCopyingCategory(null)
     setIsCopying(false)
     setIsAddCategoryModalOpen(true)
-    setDisableAllFields((category as any)?.is_custom === "No")
   }
 
   function handleCopyCategory(id: number): void {
-    const category = categories.find((cat) => cat.id === id)
-    if (category) {
-      setEditCategoryId(null)
-      setCopyingCategory(category)
+    const subcategory = addOnSubcategories.find((sub) => sub.id === id)
+    if (subcategory) {
+      setEditSubCategoryId(null)
+      setCopyingCategory(subcategory)
       setIsCopying(true)
       setIsAddCategoryModalOpen(true)
-      setDisableAllFields(false)
     }
   }
 
   function handleDelete(id: number): void {
-    const category = categories.find((cat) => cat.id === id)
-    setDeleteTarget({ id, name: category?.name })
-    setIsCustomNo((category as any)?.is_custom === "No")
+    const subcategory = addOnSubcategories.find((sub) => sub.id === id)
+    setDeleteTarget({ id, name: subcategory?.name })
     setDeleteModalOpen(true)
   }
 
   async function confirmDelete() {
     if (!deleteTarget) return
-    if (isCustomNo) {
-      setDeleteModalOpen(false)
-      setDeleteTarget(null)
-      return
-    }
     setIsDeleting(true)
-    await deleteCategory(deleteTarget.id, false) // false = category, not subcategory
+    await deleteAddOn(deleteTarget.id, true) // true = subcategory
     setIsDeleting(false)
     setDeleteModalOpen(false)
     setDeleteTarget(null)
-    fetchCategories(currentPage, Number(entriesPerPage), searchQuery, sortColumn, sortDirection)
+    fetchAddOnSubcategories(currentPage, Number(entriesPerPage), searchQuery, sortColumn as string, sortDirection)
   }
 
   function closeDeleteModal() {
@@ -208,8 +167,8 @@ export default function ProductCategoryPage() {
             <Package className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-gray-900">{t("Category Management", { defaultValue: "Category Management" })}</h1>
-            <p className="text-sm text-gray-500">{t("Manage your product categories", { defaultValue: "Manage your product categories" })}</p>
+            <h1 className="text-xl font-semibold text-gray-900">{t("Add-ons Sub Category Management", { defaultValue: "Add-ons Sub Category Management" })}</h1>
+            <p className="text-sm text-gray-500">{t("Manage your add-on sub categories", { defaultValue: "Manage your add-on sub categories" })}</p>
           </div>
         </div>
       </div>
@@ -254,14 +213,14 @@ export default function ProductCategoryPage() {
             onClick={() => setIsAddCategoryModalOpen(true)}
           >
             <Plus className="h-4 w-4 mr-2" />
-            {t("+ Add Category", { defaultValue: "+ Add Category" })}
+            {t("Add Sub Category", { defaultValue: "Add Sub Category" })}
           </Button>
           
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
               type="search"
-              placeholder={t("Search Categories", { defaultValue: "Search Categories" })}
+              placeholder={t("Search Sub Categories", { defaultValue: "Search Sub Categories" })}
               className="pl-10 h-10 w-64 text-sm border-gray-300 focus:border-[#1162a8] focus:ring-[#1162a8]"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
@@ -270,9 +229,9 @@ export default function ProductCategoryPage() {
         </div>
       </div>
 
-      {error && (
+      {addOnSubcategoriesError && (
         <div className="px-6 py-3 bg-red-50 border-b border-red-200">
-          <p className="text-sm text-red-600">{error}</p>
+          <p className="text-sm text-red-600">{addOnSubcategoriesError}</p>
         </div>
       )}
 
@@ -283,29 +242,23 @@ export default function ProductCategoryPage() {
             <TableRow className="bg-gray-50/80 hover:bg-gray-50">
               <TableHead className="w-12 pl-6">
                 <Checkbox
-                  checked={selectedItems.length === categories.length && categories.length > 0}
+                  checked={selectedItems.length === addOnSubcategories.length && addOnSubcategories.length > 0}
                   onCheckedChange={handleSelectAll}
                   className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
-                  aria-label={t("Select all categories", { defaultValue: "Select all categories" })}
+                  aria-label={t("Select all subcategories", { defaultValue: "Select all subcategories" })}
                 />
-              </TableHead>
-              <TableHead className="font-semibold text-gray-900">
-                {t("Case Pan", { defaultValue: "Case Pan" })}
               </TableHead>
               <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("name")}>
                 <div className="flex items-center">
-                  {t("Category", { defaultValue: "Category" })} 
+                  {t("Sub Category", { defaultValue: "Sub Category" })} 
                   {renderSortIndicator("name")}
                 </div>
               </TableHead>
               <TableHead className="font-semibold text-gray-900">
-                {t("Default Code", { defaultValue: "Default Code" })}
+                {t("Sub Category Code", { defaultValue: "Sub Category Code" })}
               </TableHead>
               <TableHead className="font-semibold text-gray-900">
-                {t("Arch Type", { defaultValue: "Arch Type" })}
-              </TableHead>
-              <TableHead className="font-semibold text-gray-900">
-                {t("Visibility", { defaultValue: "Visibility" })}
+                {t("Status", { defaultValue: "Status" })}
               </TableHead>
               <TableHead className="font-semibold text-gray-900 text-center pr-6">
                 {t("Action", { defaultValue: "Action" })}
@@ -313,93 +266,66 @@ export default function ProductCategoryPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
+            {isLoadingAddOnSubcategories ? (
               Array.from({ length: Number.parseInt(entriesPerPage) }).map((_, index) => (
                 <TableRow key={`skeleton-${index}`}>
                   <TableCell><div className="w-4 h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
-                  <TableCell><div className="w-8 h-6 bg-gray-200 rounded animate-pulse" /></TableCell>
                   <TableCell><div className="w-32 h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
                   <TableCell><div className="w-16 h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
                   <TableCell><div className="w-16 h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
                   <TableCell><div className="w-20 h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
-                  <TableCell><div className="w-20 h-4 bg-gray-200 rounded animate-pulse" /></TableCell>
                 </TableRow>
               ))
-            ) : categories.length > 0 ? (
-              categories.map((category) => (
-                <TableRow key={category.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+            ) : addOnSubcategories.length > 0 ? (
+              addOnSubcategories.map((subcategory) => (
+                <TableRow key={subcategory.id} className="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
                   <TableCell className="pl-6">
                     <Checkbox
-                      checked={selectedItems.includes(category.id)}
-                      onCheckedChange={(checked) => handleSelectItem(category.id, !!checked)}
+                      checked={selectedItems.includes(subcategory.id)}
+                      onCheckedChange={(checked) => handleSelectItem(subcategory.id, !!checked)}
                       className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
-                      aria-labelledby={`category-name-${category.id}`}
+                      aria-labelledby={`subcategory-name-${subcategory.id}`}
                     />
                   </TableCell>
-                  <TableCell>
-                    <div
-                      className={`w-8 h-6 rounded flex items-center justify-center text-xs font-medium ${getColorBadge((category as any)?.color_code)}`}
-                    >
-                      {(category as any)?.color_code ? "" : "---"}
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-medium text-gray-900" id={`category-name-${category.id}`}>
-                    {category.name}
+                  <TableCell className="font-medium text-gray-900" id={`subcategory-name-${subcategory.id}`}>
+                    {subcategory.name}
                   </TableCell>
                   <TableCell>
                     <code className="bg-gray-100 px-2 py-1 rounded text-xs font-mono text-gray-800">
-                      {category?.code || "-"}
+                      {subcategory?.code || "-"}
                     </code>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline" className={getTypeBadgeClass(category?.type || "")}>
-                      {category?.type || "-"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                      All Labs
+                    <Badge
+                      variant="outline"
+                      className={
+                        subcategory.status === "Active"
+                          ? "bg-green-50 text-green-700 border-green-200"
+                          : "bg-gray-50 text-gray-700 border-gray-200"
+                      }
+                    >
+                      {t(subcategory.status || "Inactive")}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-center pr-6">
                     <div className="flex items-center justify-center gap-1">
-                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-[#1162a8] hover:bg-blue-50" onClick={() => handleEdit(category.id)}>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-600 hover:text-[#1162a8] hover:bg-blue-50" onClick={() => handleEdit(subcategory.id)}>
                         <Edit className="h-4 w-4" />
                       </Button>
-                      {(category as any)?.is_custom === "No" ? (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0 text-gray-400 cursor-not-allowed"
-                                disabled
-                              >
-                                <TrashIcon className="h-4 w-4" />
-                              </Button>
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {t("This record is not custom and cannot be deleted.")}
-                          </TooltipContent>
-                        </Tooltip>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-gray-600 hover:text-red-600 hover:bg-red-50"
-                          onClick={() => handleDelete(category.id)}
-                        >
-                          <TrashIcon className="h-4 w-4" />
-                        </Button>
-                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-gray-600 hover:text-red-600 hover:bg-red-50"
+                        onClick={() => handleDelete(subcategory.id)}
+                      >
+                        <TrashIcon className="h-4 w-4" />
+                      </Button>
                       <Button 
                         variant="ghost" 
                         size="sm" 
                         className="h-8 w-8 p-0 text-gray-600 hover:text-gray-800 hover:bg-gray-50"
-                        onClick={() => handleCopyCategory(category.id)}
-                        title={t("Duplicate Category")}
+                        onClick={() => handleCopyCategory(subcategory.id)}
+                        title={t("Duplicate Sub Category")}
                       >
                         <Copy className="h-4 w-4" />
                       </Button>
@@ -409,19 +335,19 @@ export default function ProductCategoryPage() {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-12">
+                <TableCell colSpan={5} className="text-center py-12">
                   <div className="flex flex-col items-center gap-4">
                     <div className="p-4 bg-gray-100 rounded-full">
                       <Package className="h-8 w-8 text-gray-400" />
                     </div>
                     <div className="text-center">
                       <h3 className="font-medium text-gray-900 mb-1">
-                        {t("No categories found")}
+                        {t("No subcategories found")}
                       </h3>
                       <p className="text-sm text-gray-500 mb-4">
                         {searchInput 
                           ? t("Try adjusting your search terms or filters")
-                          : t("Get started by creating your first category")
+                          : t("Get started by creating your first subcategory")
                         }
                       </p>
                       {!searchInput && (
@@ -430,7 +356,7 @@ export default function ProductCategoryPage() {
                           onClick={() => setIsAddCategoryModalOpen(true)}
                         >
                           <Plus className="h-4 w-4 mr-2" />
-                          {t("Add Your First Category")}
+                          {t("Add Your First Sub Category")}
                         </Button>
                       )}
                     </div>
@@ -443,10 +369,10 @@ export default function ProductCategoryPage() {
       </div>
 
       {/* Pagination */}
-      {pagination.total > 0 && (
+      {addOnSubcategoriesPagination && addOnSubcategoriesPagination.total > 0 && (
         <div className="px-6 py-4 flex justify-between items-center border-t border-gray-200">
           <div className="text-sm text-gray-600">
-            {t("Showing")} {startEntry} {t("to")} {endEntry} {t("of")} {pagination.total} {t("entries")}
+            {t("Showing")} {startEntry} {t("to")} {endEntry} {t("of")} {addOnSubcategoriesPagination.total} {t("entries")}
           </div>
           <div className="flex items-center space-x-1">
             <button
@@ -491,21 +417,20 @@ export default function ProductCategoryPage() {
         </div>
       )}
 
-      <AddCategoryModal
+      <AddAddOnCategoryModal
         isOpen={isAddCategoryModalOpen}
         onClose={() => {
-          setEditCategoryId(null)
+          setEditSubCategoryId(null)
           setCopyingCategory(null)
           setIsCopying(false)
           setIsAddCategoryModalOpen(false)
-          fetchCategories(currentPage, Number(entriesPerPage), searchQuery, sortColumn, sortDirection)
+          fetchAddOnSubcategories(currentPage, Number(entriesPerPage), searchQuery, sortColumn as string, sortDirection)
         }}
-        editId={editCategoryId ?? undefined}
-        isEdit={!!editCategoryId && !isCopying}
-        isSubCategoryEdit={false}
-        disableAllFields={disableAllFields}
+        onHasChangesChange={() => {}}
+        addOn={editSubCategoryId ? addOnSubcategories.find(s => s.id === editSubCategoryId) as any : copyingCategory}
+        isEditing={!!editSubCategoryId && !isCopying}
         isCopying={isCopying}
-        copyingCategory={copyingCategory}
+        isSubCategory={true}
       />
 
       <DeleteConfirmationModal
@@ -513,14 +438,14 @@ export default function ProductCategoryPage() {
         onClose={closeDeleteModal}
         onConfirm={confirmDelete}
         itemName={deleteTarget?.name}
-        title={t("Delete Category", { defaultValue: "Delete Category" })}
-        description={t("Are you sure you want to delete this category?")}
+        title={t("Delete Sub Category", { defaultValue: "Delete Sub Category" })}
+        description={t("Are you sure you want to delete this subcategory?")}
         confirmText={t("Delete", { defaultValue: "Delete" })}
         cancelText={t("Cancel", { defaultValue: "Cancel" })}
         isLoading={isDeleting}
-        isCustomNo={isCustomNo}
       />
       </TooltipProvider>
     </div>
   )
 }
+

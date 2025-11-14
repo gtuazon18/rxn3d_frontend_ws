@@ -28,7 +28,7 @@ interface CreateGradeModalProps {
 }
 
 export function CreateGradeModal({ isOpen, onClose, editingGrade, editId, onSave, role, isCopying = false }: CreateGradeModalProps) {
-  const { createGrade, fetchGradeDetail, isLoading } = useGrades()
+  const { createGrade, updateGrade, fetchGradeDetail, isLoading } = useGrades()
 
   const defaultFormData = {
     name: "",
@@ -63,35 +63,45 @@ export function CreateGradeModal({ isOpen, onClose, editingGrade, editId, onSave
 
   // Fetch grade details when editing with editId
   useEffect(() => {
-    if (isOpen && editId && !editingGrade && !isCopying) {
-      // Editing: fetch detail from API
+    if (isOpen && editId && !isCopying) {
+      // Editing: always fetch detail from API when editId is provided
+      console.log("Fetching grade detail for editId:", editId)
       setIsDetailLoading(true)
-      fetchGradeDetail(editId).then((gradeDetail) => {
-        if (gradeDetail) {
-          setFetchedGrade(gradeDetail)
-          setFormData({
-            name: gradeDetail.name || "",
-            code: gradeDetail.code || "",
-            sequence: gradeDetail.sequence?.toString() || "",
-            status: gradeDetail.status || "Active",
-          })
-          setInitialFormData({
-            name: gradeDetail.name || "",
-            code: gradeDetail.code || "",
-            sequence: gradeDetail.sequence?.toString() || "",
-            status: gradeDetail.status || "Active",
-          })
-          // Set image if available
-          if (gradeDetail.image_url) {
-            setImageBase64(gradeDetail.image_url)
-            setImagePreview(gradeDetail.image_url)
+      // Reset form data while loading
+      setFormData(defaultFormData)
+      setInitialFormData(defaultFormData)
+      
+      fetchGradeDetail(editId)
+        .then((gradeDetail) => {
+          console.log("Fetched grade detail:", gradeDetail)
+          if (gradeDetail) {
+            setFetchedGrade(gradeDetail)
+            const newFormData = {
+              name: gradeDetail.name || "",
+              code: gradeDetail.code || "",
+              sequence: gradeDetail.sequence?.toString() || "",
+              status: gradeDetail.status || "Active",
+            }
+            setFormData(newFormData)
+            setInitialFormData(newFormData)
+            // Set image if available
+            if (gradeDetail.image_url) {
+              setImageBase64(gradeDetail.image_url)
+              setImagePreview(gradeDetail.image_url)
+            } else {
+              setImageBase64(null)
+              setImagePreview(null)
+            }
+            console.log("Form data updated with:", newFormData)
           } else {
-            setImageBase64(null)
-            setImagePreview(null)
+            console.warn("No grade detail returned from API")
           }
-        }
-        setIsDetailLoading(false)
-      })
+          setIsDetailLoading(false)
+        })
+        .catch((error) => {
+          console.error("Error fetching grade detail:", error)
+          setIsDetailLoading(false)
+        })
     } else if (isOpen && editingGrade && isCopying) {
       // Copying: use the provided editingGrade data directly (no API call needed)
       setFetchedGrade(editingGrade)
@@ -148,12 +158,16 @@ export function CreateGradeModal({ isOpen, onClose, editingGrade, editId, onSave
       setImagePreview(null)
       setFetchedGrade(null)
       setIsDetailLoading(false)
+      // Reset form when modal closes
+      setFormData(defaultFormData)
+      setInitialFormData(defaultFormData)
     }
   }, [isOpen])
 
   useEffect(() => {
     if (isOpen) {
-      if (!editId && !editingGrade) {
+      // Only reset form if we're creating a new grade (no editId and no editingGrade)
+      if (!editId && !editingGrade && !fetchedGrade) {
         // Reset form for new grade creation
         setFormData(defaultFormData)
         setInitialFormData(defaultFormData)
@@ -166,7 +180,7 @@ export function CreateGradeModal({ isOpen, onClose, editingGrade, editId, onSave
       setLinkToProductsOpen(false)
       setLinkToGroupOpen(false)
     }
-  }, [isOpen, editId, editingGrade])
+  }, [isOpen, editId, editingGrade, fetchedGrade])
 
   useEffect(() => {
     const changed = JSON.stringify(formData) !== JSON.stringify(initialFormData)
@@ -262,12 +276,36 @@ export function CreateGradeModal({ isOpen, onClose, editingGrade, editId, onSave
       }
 
       // If copying, always create a new grade (not update)
-      if ((editingGrade || fetchedGrade) && onSave && !isCopying) {
-        await onSave(payload)
-        setHasChanges(false)
-        onClose()
+      if (isCopying) {
+        // Create new grade (copy)
+        const success = await createGrade(payload)
+        if (success) {
+          setHasChanges(false)
+          onClose()
+        } else {
+          console.error("Failed to create grade. createGrade returned false.")
+        }
+      } else if (editId || editingGrade || fetchedGrade) {
+        // Editing: call updateGrade API directly
+        const gradeId = editId || editingGrade?.id || fetchedGrade?.id
+        if (!gradeId) {
+          console.error("No grade ID available for update")
+          return
+        }
+        
+        const success = await updateGrade(gradeId, payload)
+        if (success) {
+          setHasChanges(false)
+          onClose()
+          // Call onSave callback if provided (for additional actions)
+          if (onSave) {
+            await onSave(payload)
+          }
+        } else {
+          console.error("Failed to update grade. updateGrade returned false.")
+        }
       } else {
-        // Create new grade (either new or copy)
+        // Create new grade
         const success = await createGrade(payload)
         if (success) {
           setHasChanges(false)
@@ -388,35 +426,35 @@ export function CreateGradeModal({ isOpen, onClose, editingGrade, editId, onSave
                     <Input
                       label="Grade Name"
                       placeholder="Grade Name"
-                      value={formData.name}
+                      value={formData.name || ""}
                       onChange={(e) => handleInputChange("name", e.target.value)}
                       validationState={formData.name ? "valid" : "default"}
                       required
-                      disabled={shouldDisableFields}
+                      disabled={shouldDisableFields || isDetailLoading}
                     />
                     <Input
                       label="Grade Code"
                       placeholder="Grade Code"
-                      value={formData.code}
+                      value={formData.code || ""}
                       onChange={(e) => handleInputChange("code", e.target.value)}
                       validationState={formData.code ? "valid" : "default"}
                       required
-                      disabled={shouldDisableFields}
+                      disabled={shouldDisableFields || isDetailLoading}
                     />
                     <Input
                       label="Sequence"
                       placeholder="Sequence"
                       type="number"
-                      value={formData.sequence}
+                      value={formData.sequence || ""}
                       onChange={(e) => handleInputChange("sequence", e.target.value)}
                       validationState={formData.sequence ? "valid" : "default"}
                       required
-                      disabled={shouldDisableFields}
+                      disabled={shouldDisableFields || isDetailLoading}
                     />
                     <Select
-                      value={formData.status}
+                      value={formData.status || "Active"}
                       onValueChange={(value) => handleInputChange("status", value)}
-                      disabled={shouldDisableFields}
+                      disabled={shouldDisableFields || isDetailLoading}
                     >
                       <SelectTrigger className="h-12">
                         <SelectValue placeholder="Select Status *" />
