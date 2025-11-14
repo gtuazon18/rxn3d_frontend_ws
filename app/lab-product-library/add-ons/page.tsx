@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
 import { AddAddOnModal } from "@/components/product-management/add-add-on-modal"
 import { useAddOns } from "@/contexts/product-add-on-context"
 import { useLanguage } from "@/contexts/language-context"
@@ -70,9 +71,9 @@ export default function AddOnsPage() {
 
   // Only fetch add-ons when relevant state changes
   useEffect(() => {
-    fetchAddOns(currentPage, Number(entriesPerPage))
+    fetchAddOns(currentPage, Number(entriesPerPage), searchQuery, sortColumn ?? undefined, sortDirection)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, entriesPerPage, searchQuery, currentLanguage])
+  }, [currentPage, entriesPerPage, searchQuery, sortColumn, sortDirection, currentLanguage])
 
   const handlePageChange = (page: number) => {
     if (addOnPagination && page >= 1 && page <= addOnPagination.last_page) {
@@ -81,7 +82,8 @@ export default function AddOnsPage() {
   }
 
   const handleSort = (column: string) => {
-    if (sortColumn === column) {
+    const columnKey = column as keyof import("@/contexts/product-add-on-context").AddOn
+    if (sortColumn === columnKey) {
       if (sortDirection === "asc") {
         setSortDirection("desc")
       } else if (sortDirection === "desc") {
@@ -91,7 +93,7 @@ export default function AddOnsPage() {
         setSortDirection("asc")
       }
     } else {
-      setSortColumn(column)
+      setSortColumn(columnKey)
       setSortDirection("asc")
     }
     setCurrentPage(1) 
@@ -246,6 +248,9 @@ export default function AddOnsPage() {
           <TableCell>
             <Skeleton className="h-4 w-20" />
           </TableCell>
+          <TableCell>
+            <Skeleton className="h-4 w-16" />
+          </TableCell>
         </TableRow>
       ))}
     </>
@@ -368,6 +373,12 @@ export default function AddOnsPage() {
                   <TableHead className="font-semibold text-gray-900">
                     {t("Price")}
                   </TableHead>
+                  <TableHead className="cursor-pointer font-semibold text-gray-900 hover:text-[#1162a8] transition-colors" onClick={() => handleSort("status")}>
+                    <div className="flex items-center">
+                      {t("Status")}
+                      {renderSortIndicator("status")}
+                    </div>
+                  </TableHead>
                   <TableHead className="font-semibold text-gray-900 text-center pr-6">
                     {t("Actions")}
                   </TableHead>
@@ -390,7 +401,19 @@ export default function AddOnsPage() {
                       <TableCell className="font-medium text-gray-900">{addOn.name}</TableCell>
                       {/* New Price Cell */}
                       <TableCell className="font-medium text-gray-900">
-                        {addOn.lab_addon?.price ?? addOn.price ?? "-"}
+                        {(addOn as any).lab_addon?.price ?? addOn.price ?? "-"}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={
+                            addOn.status === "Active"
+                              ? "bg-green-50 text-green-700 border-green-200"
+                              : "bg-gray-50 text-gray-700 border-gray-200"
+                          }
+                        >
+                          {t(addOn.status)}
+                        </Badge>
                       </TableCell>
                       <TableCell className="text-center pr-6">
                         <div className="flex items-center justify-center gap-1">
@@ -420,7 +443,7 @@ export default function AddOnsPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-12">
+                    <TableCell colSpan={7} className="text-center py-12">
                       <div className="flex flex-col items-center gap-4">
                         <div className="p-4 bg-gray-100 rounded-full">
                           <Package className="h-8 w-8 text-gray-400" />

@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { AddCategoryModal } from "@/components/product-management/add-category-modal"
+import { AddSubCategoryModal } from "@/components/product-management/add-subcategory-modal"
 import { DeleteConfirmationModal } from "@/components/ui/delete-confirmation-modal"
 import { useProductCategory } from "@/contexts/product-category-context"
 import { useLanguage } from "@/contexts/language-context"
@@ -491,7 +491,7 @@ export default function ProductSubCategoryPage() {
         </div>
       )}
 
-      <AddCategoryModal
+      <AddSubCategoryModal
         isOpen={isAddCategoryModalOpen}
         onClose={() => {
           setEditSubCategoryId(null)
@@ -501,11 +501,9 @@ export default function ProductSubCategoryPage() {
           fetchSubcategories(currentPage, Number(entriesPerPage), searchQuery, sortColumn, sortDirection)
         }}
         editId={editSubCategoryId ?? undefined}
-        isEdit={!!editSubCategoryId && !isCopying}
-        isSubCategoryEdit={!!editSubCategoryId && !isCopying}
         disableAllFields={disableAllFields}
         isCopying={isCopying}
-        copyingCategory={copyingCategory}
+        copyingSubCategory={copyingCategory}
       />
 
       <DeleteConfirmationModal

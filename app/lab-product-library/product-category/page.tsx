@@ -501,8 +501,6 @@ export default function ProductCategoryPage() {
           fetchCategories(currentPage, Number(entriesPerPage), searchQuery, sortColumn, sortDirection)
         }}
         editId={editCategoryId ?? undefined}
-        isEdit={!!editCategoryId && !isCopying}
-        isSubCategoryEdit={false}
         disableAllFields={disableAllFields}
         isCopying={isCopying}
         copyingCategory={copyingCategory}

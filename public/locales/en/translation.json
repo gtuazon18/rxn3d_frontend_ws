@@ -370,9 +370,9 @@
   "Arch Type": "Arch Type",
   "No categories found. Try adjusting your search or add a new category.": "No categories found. Try adjusting your search or add a new category.",
   "categoryModal": {
-    "title": "Add New Case Category/Sub Category",
-    "details": "Category/Sub Category Details",
-    "namePlaceholder": "Category/Sub Category Name *",
+    "title": "Add New Case Category",
+    "details": "Category Details",
+    "namePlaceholder": "Category Name *",
     "codeLabel": "Code",
     "codePlaceholder": "Code *",
     "nestUnder": "Nest Sub Category Under:",

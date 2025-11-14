@@ -15,39 +15,44 @@ import { useTranslation } from "react-i18next"
 import { z } from "zod"
 import { generateCodeFromName } from "@/lib/utils"
 
-interface AddCategoryModalProps {
+interface AddSubCategoryModalProps {
   isOpen: boolean
   onClose: () => void
   editId?: number
   disableAllFields?: boolean
   isCopying?: boolean
-  copyingCategory?: ProductCategory | null
+  copyingSubCategory?: ProductCategory | null
 }
 
+const NO_PARENT_CATEGORIES_VALUE = "__NO_PARENT_CATEGORIES__"
+
 // Zod schema for validation
-const categorySchema = z.object({
+const subCategorySchema = z.object({
   name: z.string().min(1, "Name is required."),
   code: z.string().min(1, "Code is required."),
   type: z.string().min(1, "Arch type is required."),
   status: z.string().min(1, "Status is required."),
+  parent_id: z.number({ required_error: "Parent category is required for sub-category." }),
   case_pan_id: z.union([z.number(), z.null()]).refine(val => val !== null, {
     message: "Case Pan is required.",
   }),
 })
 
-export function AddCategoryModal({ 
+export function AddSubCategoryModal({ 
   isOpen, 
   onClose, 
   editId, 
   disableAllFields, 
   isCopying = false, 
-  copyingCategory = null 
-}: AddCategoryModalProps) {
+  copyingSubCategory = null 
+}: AddSubCategoryModalProps) {
   const {
-    createCategory,
+    createSubCategory,
     updateCategory,
     isLoading: isCategoryActionLoading,
-    getCategoryDetail,
+    parentDropdownCategories,
+    fetchParentDropdownCategories,
+    getSubCategoryDetail,
     user,
   } = useProductCategory()
 
@@ -60,6 +65,7 @@ export function AddCategoryModal({
     type: "Both",
     sequence: 1,
     status: "Active",
+    parent_id: null as number | null,
     case_pan_id: null as number | null,
   }
 
@@ -99,40 +105,43 @@ export function AddCategoryModal({
 
   // Always fetch detail in edit mode
   useEffect(() => {
-    if (isOpen && isCopying && copyingCategory) {
-      // Copying: use the provided copyingCategory data directly
+    if (isOpen && isCopying && copyingSubCategory) {
+      // Copying: use the provided copyingSubCategory data directly
       setFormData({
-        name: copyingCategory.name || "",
-        code: copyingCategory.code || "",
-        type: copyingCategory.type || "Both",
-        sequence: copyingCategory.sequence || 1,
-        status: copyingCategory.status || "Active",
-        case_pan_id: (copyingCategory as any).case_pan_id ?? null,
+        name: copyingSubCategory.sub_name || copyingSubCategory.name || "",
+        code: copyingSubCategory.code || "",
+        type: copyingSubCategory.type || "Both",
+        sequence: copyingSubCategory.sequence || 1,
+        status: copyingSubCategory.status || "Active",
+        parent_id: copyingSubCategory.parent_id ?? (copyingSubCategory as any).category_id ?? null,
+        case_pan_id: (copyingSubCategory as any).case_pan_id ?? null,
       })
       setDetailLoadedId(null)
       setIsCustomValue(undefined)
       setDisableEditFields(false)
       
       // Set image if available
-      if ((copyingCategory as any).image_url) {
-        setImageBase64((copyingCategory as any).image_url)
-        setImagePreview((copyingCategory as any).image_url)
+      if ((copyingSubCategory as any).image_url) {
+        setImageBase64((copyingSubCategory as any).image_url)
+        setImagePreview((copyingSubCategory as any).image_url)
       } else {
         setImageBase64(null)
         setImagePreview(null)
       }
       fetchCasePans()
+      fetchParentDropdownCategories()
     } else if (isOpen && editId && !isCopying) {
       // Editing: fetch detail from API
       setIsDetailLoading(true)
-      getCategoryDetail(editId).then((detail) => {
+      getSubCategoryDetail(editId).then((detail) => {
         if (detail) {
           setFormData({
-            name: detail.name || "",
+            name: detail.sub_name || detail.name || "",
             code: detail.code || "",
             type: detail.type || "Both",
             sequence: detail.sequence || 1,
             status: detail.status || "Active",
+            parent_id: detail.parent_id ?? (detail as any).category_id ?? null,
             case_pan_id: detail.case_pan_id ?? null,
           })
           setDetailLoadedId(editId)
@@ -150,17 +159,19 @@ export function AddCategoryModal({
         setIsDetailLoading(false)
       })
       fetchCasePans()
+      fetchParentDropdownCategories()
     } else if (isOpen && !editId && !isCopying) {
-      // New category: reset form
+      // New subcategory: reset form
       resetForm()
       setIsDetailLoading(false)
       setDetailLoadedId(null)
       setIsCustomValue(undefined)
       setDisableEditFields(false)
       fetchCasePans()
+      fetchParentDropdownCategories()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, editId, isCopying, copyingCategory])
+  }, [isOpen, editId, isCopying, copyingSubCategory])
 
   // Use detailLoadedId to control readonly/disabled state
   useEffect(() => {
@@ -182,11 +193,15 @@ export function AddCategoryModal({
       formData.type !== initialFormData.type ||
       formData.status !== initialFormData.status ||
       formData.case_pan_id !== initialFormData.case_pan_id ||
+      formData.parent_id !== initialFormData.parent_id ||
       imageBase64 !== null
     setHasChanges(hasFormChanges)
   }, [formData, initialFormData, imageBase64])
 
   const handleInputChange = (field: string, value: string | number | null) => {
+    if (value === NO_PARENT_CATEGORIES_VALUE) {
+      return
+    }
     setFormData((prev) => {
       const updated = {
         ...prev,
@@ -280,12 +295,12 @@ export function AddCategoryModal({
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [validationErrors, setValidationErrors] = useState<{ [key: string]: string }>({})
 
-  const handleSaveCategory = async () => {
+  const handleSaveSubCategory = async () => {
     setErrorMessage(null)
     setValidationErrors({})
 
     // Zod validation
-    const zodResult = categorySchema.safeParse(formData)
+    const zodResult = subCategorySchema.safeParse(formData)
 
     if (!zodResult.success) {
       const errors: { [key: string]: string } = {}
@@ -298,24 +313,31 @@ export function AddCategoryModal({
       return
     }
 
+    if (!formData.parent_id) {
+      setErrorMessage(t("categoryModal.selectParent", "Please select a parent category for the sub-category."))
+      return
+    }
+
     const payload = {
       name: formData.name,
       code: formData.code,
       type: formData.type,
       sequence: formData.sequence,
       status: formData.status,
+      parent_id: formData.parent_id,
       case_pan_id: formData.case_pan_id,
+      category_id: formData.parent_id,
       ...(imageBase64 && { image: imageBase64 }),
     }
 
     let success = false
     try {
       if (editId && !isCopying) {
-        // Edit mode: update category
-        success = await updateCategory(editId, payload, false)
+        // Edit mode: update subcategory
+        success = await updateCategory(editId, payload, true)
       } else {
         // Create mode
-        success = await createCategory(payload)
+        success = await createSubCategory(payload as any)
       }
     } catch (err: any) {
       // Handle API validation errors (422)
@@ -347,7 +369,7 @@ export function AddCategoryModal({
       } else if (errorMessage) {
         setErrorMessage(errorMessage)
       } else {
-        setErrorMessage(t("categoryModal.saveFailed", "Failed to save category. Please try again."))
+        setErrorMessage(t("categoryModal.saveFailed", "Failed to save subcategory. Please try again."))
       }
     }
   }
@@ -357,7 +379,10 @@ export function AddCategoryModal({
     formData.code.trim() !== "" &&
     formData.type.trim() !== "" &&
     formData.status.trim() !== "" &&
+    formData.parent_id !== null &&
     formData.case_pan_id !== null
+
+  const currentParentDropdownCategories = Array.isArray(parentDropdownCategories) ? parentDropdownCategories : []
 
   let currentArchLabel = t("categoryModal.bothArches", "Both Arches")
   if (formData.type === "Upper") currentArchLabel = t("categoryModal.upperArch", "Upper arch only")
@@ -372,10 +397,10 @@ export function AddCategoryModal({
           <DialogHeader className="px-6 py-4 border-b">
             <DialogTitle className="text-xl font-bold">
               {isCopying
-                ? t("categoryModal.copyCategory", "Copy Category")
+                ? t("categoryModal.copySubCategory", "Copy Sub Category")
                 : editId
-                  ? t("categoryModal.editTitle", "Edit Category")
-                  : t("categoryModal.title", "Add New Category")}
+                  ? t("categoryModal.editSubCategoryTitle", "Edit Sub Category")
+                  : t("categoryModal.addSubCategoryTitle", "Add New Sub Category")}
             </DialogTitle>
             <Button variant="ghost" size="icon" onClick={handleClose} className="h-8 w-8 absolute right-4 top-4">
               <X className="h-5 w-5" />
@@ -403,7 +428,7 @@ export function AddCategoryModal({
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="font-medium">
-                      {t("categoryModal.details", "Category Details")}
+                      {t("categoryModal.subCategoryDetails", "Sub Category Details")}
                     </span>
                     <div className="rounded-full bg-gray-200 text-gray-600 w-5 h-5 flex items-center justify-center text-xs">
                       ?
@@ -446,7 +471,7 @@ export function AddCategoryModal({
                           />
                         </div>
                         <span className="text-sm text-gray-500 text-center max-w-[160px]">
-                          Click to upload category image
+                          Click to upload subcategory image
                         </span>
                         <div className="flex flex-col gap-2">
                           <Button
@@ -479,7 +504,7 @@ export function AddCategoryModal({
                         <div className="space-y-4">
                           <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Basic Information</h3>
                           <Input
-                            placeholder={t("categoryModal.namePlaceholder", "Category Name *")}
+                            placeholder={t("categoryModal.subCategoryNamePlaceholder", "Sub Category Name *")}
                             className="h-12 text-lg"
                             value={formData.name}
                             onChange={(e) => handleInputChange("name", e.target.value)}
@@ -524,6 +549,46 @@ export function AddCategoryModal({
                                 </SelectContent>
                               </Select>
                             </div>
+                          </div>
+                        </div>
+
+                        {/* Category Configuration Section */}
+                        <div className="space-y-4">
+                          <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Category Configuration</h3>
+                          
+                          <div className="space-y-2">
+                            <label className="text-sm font-medium text-gray-700">
+                              {t("categoryModal.parentCategoryLabel", "Parent Category")} <span className="text-red-500">*</span>
+                            </label>
+                            <Select
+                              value={formData.parent_id ? formData.parent_id.toString() : ""}
+                              onValueChange={(value) => handleInputChange("parent_id", value ? Number.parseInt(value) : null)}
+                              disabled={effectiveDisableFields}
+                              required
+                            >
+                              <SelectTrigger className={`h-11 ${validationErrors.parent_id ? "border-red-500" : ""}`} disabled={effectiveDisableFields}>
+                                <SelectValue placeholder={t("categoryModal.selectCategory", "Select Parent Category *")}>
+                                  {currentParentDropdownCategories.find((cat) => cat.id === formData.parent_id)?.name ||
+                                    t("categoryModal.selectCategory", "Select Category")}
+                                </SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                {currentParentDropdownCategories.length > 0 ? (
+                                  currentParentDropdownCategories.map((cat: ProductCategory) => (
+                                    <SelectItem key={cat.id} value={cat.id.toString()}>
+                                      {cat.name}
+                                    </SelectItem>
+                                  ))
+                                ) : (
+                                  <SelectItem value={NO_PARENT_CATEGORIES_VALUE} disabled>
+                                    {t("categoryModal.noParentCategories", "No parent categories available")}
+                                  </SelectItem>
+                                )}
+                              </SelectContent>
+                            </Select>
+                            {validationErrors.parent_id && (
+                              <div className="text-sm text-red-600 mt-1">{validationErrors.parent_id}</div>
+                            )}
                           </div>
                         </div>
 
@@ -597,7 +662,7 @@ export function AddCategoryModal({
             {isFormValid && !(editId && isDetailLoading) && (
               <Button
                 className="bg-[#1162a8] hover:bg-[#0d4d87]"
-                onClick={handleSaveCategory}
+                onClick={handleSaveSubCategory}
                 disabled={overallLoading || effectiveDisableFields}
               >
                 {overallLoading
@@ -605,10 +670,10 @@ export function AddCategoryModal({
                       ? t("categoryModal.copying", "Copying...")
                       : t("categoryModal.saving", "Saving..."))
                   : isCopying
-                    ? t("categoryModal.copyCategory", "Copy Category")
+                    ? t("categoryModal.copySubCategory", "Copy Sub Category")
                     : editId
                       ? t("categoryModal.saveEdit", "Save Changes")
-                      : t("categoryModal.saveCategory", "Save Category")}
+                      : t("categoryModal.saveSubCategory", "Save Sub Category")}
               </Button>
             )}
           </DialogFooter>
@@ -632,7 +697,7 @@ export function AddCategoryModal({
             {imagePreview && (
               <img
                 src={imagePreview}
-                alt="Category Preview"
+                alt="Sub Category Preview"
                 className="max-w-full max-h-full object-contain"
               />
             )}
@@ -657,3 +722,4 @@ export function AddCategoryModal({
     </>
   )
 }
+
