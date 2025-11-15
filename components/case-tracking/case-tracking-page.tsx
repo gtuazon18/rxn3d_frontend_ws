@@ -294,11 +294,51 @@ export function CaseTrackingPage() {
 
         {/* Current Rush Group Banner */}
         {currentRushGroup && (
-          <div className="px-6 py-3 bg-yellow-50 border-b flex items-center gap-2">
-            <Zap className="h-5 w-5 text-yellow-600 fill-yellow-600" />
-            <span className="text-sm font-medium text-yellow-800">
-              {t("caseTracking.currentRushGroup", "Current Rush Group")}: {currentRushGroup}
-            </span>
+          <div className="px-6 py-3 border-b flex items-center">
+            <div
+              style={{
+                boxSizing: "border-box",
+                minWidth: "316px",
+                height: "34px",
+                background: "rgba(255, 213, 79, 0.125)",
+                border: "0.769231px solid #FFD54F",
+                borderRadius: "8px",
+                position: "relative",
+                display: "flex",
+                alignItems: "center",
+                paddingLeft: "32.75px",
+                paddingRight: "12px",
+              }}
+            >
+              <Zap
+                style={{
+                  width: "12px",
+                  height: "12px",
+                  position: "absolute",
+                  left: "12.76px",
+                  color: "#F57F17",
+                  fill: "#F57F17",
+                  stroke: "#F57F17",
+                  strokeWidth: 1,
+                  flexShrink: 0,
+                }}
+              />
+              <span
+                style={{
+                  fontFamily: "Verdana",
+                  fontStyle: "normal",
+                  fontWeight: 400,
+                  fontSize: "14px",
+                  lineHeight: "20px",
+                  color: "#F57F17",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {t("caseTracking.currentRushGroup", "Current Rush Group")}: {currentRushGroup}
+              </span>
+            </div>
           </div>
         )}
 
@@ -374,7 +414,9 @@ export function CaseTrackingPage() {
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
                   {t("caseTracking.status", "Status")}
                 </th>
-                <th className="px-4 py-3 w-12"></th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">
+                  {t("caseTracking.actions", "Actions")}
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -468,63 +510,81 @@ export function CaseTrackingPage() {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <Switch
-                        checked={casePan.status === "Active"}
-                        className="data-[state=checked]:bg-[#1162a8]"
-                        disabled
-                      />
-                      <span className="ml-2 text-sm">
-                        {casePan.status === "Active" ? "Active" : "Inactive"}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={casePan.status === "Active"}
+                          className="data-[state=checked]:bg-[#1162a8]"
+                          disabled
+                        />
+                        <span className="text-sm">
+                          {casePan.status === "Active" ? "Active" : "Inactive"}
+                        </span>
+                      </div>
                     </td>
                     <td className="px-4 py-3">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEdit(casePan)}>
-                            <Edit className="h-4 w-4 mr-2" />
-                            {t("caseTracking.edit", "Edit")}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleDuplicate(casePan)}>
-                            <Copy className="h-4 w-4 mr-2" />
-                            {t("caseTracking.duplicate", "Duplicate")}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleHistory(casePan)}>
-                            <Clock className="h-4 w-4 mr-2" />
-                            {t("caseTracking.history", "History")}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleReprint(casePan)}>
-                            <Printer className="h-4 w-4 mr-2" />
-                            {t("caseTracking.reprint", "Reprint")}
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => handleToggleRushGroup(casePan)}>
-                            {casePan.isRushGroup ? (
-                              <>
-                                <Check className="h-4 w-4 mr-2 text-yellow-600" />
-                                {t("caseTracking.currentRushGroup", "Current Rush Group")}
-                              </>
-                            ) : (
-                              <>
-                                <Zap className="h-4 w-4 mr-2" />
-                                {t("caseTracking.setAsRushGroup", "Set as Rush Group")}
-                              </>
-                            )}
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={() => handleDelete(casePan.id)}
-                            className="text-red-600"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            {t("caseTracking.delete", "Delete")}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleHistory(casePan)}
+                          title={t("caseTracking.history", "History")}
+                        >
+                          <Clock className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleReprint(casePan)}
+                          title={t("caseTracking.reprint", "Reprint")}
+                        >
+                          <Printer className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleDuplicate(casePan)}
+                          title={t("caseTracking.duplicate", "Duplicate")}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleEdit(casePan)}>
+                              <Edit className="h-4 w-4 mr-2" />
+                              {t("caseTracking.editGroup", "Edit Group")}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleToggleRushGroup(casePan)}>
+                              {casePan.isRushGroup ? (
+                                <>
+                                  <Zap className="h-4 w-4 mr-2" />
+                                  {t("caseTracking.unsetAsRushGroup", "Unset as Rush Group")}
+                                </>
+                              ) : (
+                                <>
+                                  <Zap className="h-4 w-4 mr-2" />
+                                  {t("caseTracking.setAsRushGroup", "Set as Rush Group")}
+                                </>
+                              )}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => handleDelete(casePan.id)}
+                              className="text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              {t("caseTracking.deleteGroup", "Delete Group")}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </td>
                   </tr>
                 ))
