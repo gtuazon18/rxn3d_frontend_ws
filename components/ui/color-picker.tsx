@@ -1,6 +1,8 @@
 "use client"
 
-import { useState, useRef, useEffect, useCallback } from "react"
+import { useState, useRef, useEffect } from "react"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 
 interface ColorPickerProps {
@@ -11,34 +13,57 @@ interface ColorPickerProps {
 
 export function ColorPicker({ value, onChange, predefinedColors = [] }: ColorPickerProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const [hue, setHue] = useState(0)
-  const [saturation, setSaturation] = useState(100)
-  const [lightness, setLightness] = useState(50)
-  const [isDragging, setIsDragging] = useState(false)
-  const [dragType, setDragType] = useState<'hue' | 'sl' | null>(null)
-  const [isInitialized, setIsInitialized] = useState(false)
-  
+  const [showCustomPicker, setShowCustomPicker] = useState(false)
+  const [customColor, setCustomColor] = useState(value)
+  const [rgb, setRgb] = useState({ r: 0, g: 172, b: 193 })
+  const [hue, setHue] = useState(185)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
   const hueRef = useRef<HTMLDivElement>(null)
-  const slRef = useRef<HTMLDivElement>(null)
+  const [saturation, setSaturation] = useState(50)
+  const [lightness, setLightness] = useState(50)
 
-  // Convert HSL to hex
-  const hslToHex = (h: number, s: number, l: number) => {
-    l /= 100
-    const a = s * Math.min(l, 1 - l) / 100
-    const f = (n: number) => {
-      const k = (n + h / 30) % 12
-      const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1)
-      return Math.round(255 * color).toString(16).padStart(2, '0')
-    }
-    return `#${f(0)}${f(8)}${f(4)}`
+  const defaultPredefinedColors = [
+    "#D32F2F", // Red
+    "#1976D2", // Blue
+    "#388E3C", // Green
+    "#F57C00", // Orange
+    "#7B1FA2", // Purple
+    "#0097A7", // Cyan
+    "#C2185B", // Pink
+    "#5D4037", // Brown
+    "#689F38", // Lime Green
+    "#E64A19", // Deep Orange
+    "#512DA8", // Deep Purple
+    "#00796B", // Teal
+  ]
+
+  const colors = predefinedColors.length > 0 ? predefinedColors : defaultPredefinedColors
+
+  // Convert hex to RGB
+  const hexToRgb = (hex: string) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+    return result
+      ? {
+          r: parseInt(result[1], 16),
+          g: parseInt(result[2], 16),
+          b: parseInt(result[3], 16),
+        }
+      : { r: 0, g: 0, b: 0 }
   }
 
-  // Convert hex to HSL
-  const hexToHsl = (hex: string) => {
-    const r = parseInt(hex.slice(1, 3), 16) / 255
-    const g = parseInt(hex.slice(3, 5), 16) / 255
-    const b = parseInt(hex.slice(5, 7), 16) / 255
+  // Convert RGB to hex
+  const rgbToHex = (r: number, g: number, b: number) => {
+    return "#" + [r, g, b].map(x => {
+      const hex = Math.round(x).toString(16)
+      return hex.length === 1 ? "0" + hex : hex
+    }).join("")
+  }
 
+  // Convert RGB to HSL
+  const rgbToHsl = (r: number, g: number, b: number) => {
+    r /= 255
+    g /= 255
+    b /= 255
     const max = Math.max(r, g, b)
     const min = Math.min(r, g, b)
     let h = 0
@@ -63,231 +88,242 @@ export function ColorPicker({ value, onChange, predefinedColors = [] }: ColorPic
     }
   }
 
-  // Initialize HSL values from hex value (only once on mount)
+  // Initialize RGB from hex value
   useEffect(() => {
-    if (value && value.startsWith('#') && !isInitialized) {
-      const { h, s, l } = hexToHsl(value)
-      setHue(h)
-      setSaturation(s)
-      setLightness(l)
-      setIsInitialized(true)
+    if (value && value.startsWith('#')) {
+      const rgbVal = hexToRgb(value)
+      setRgb(rgbVal)
+      setCustomColor(value)
+      const hsl = rgbToHsl(rgbVal.r, rgbVal.g, rgbVal.b)
+      setHue(hsl.h)
     }
-  }, [value, isInitialized])
+  }, [value])
 
-  // Update hex value when HSL changes (but avoid circular updates)
-  const updateHexValue = useCallback(() => {
-    const hex = hslToHex(hue, saturation, lightness)
-    if (hex !== value) {
-      onChange(hex)
-    }
-  }, [hue, saturation, lightness, value, onChange])
-
+  // Draw color gradient on canvas
   useEffect(() => {
-    if (isInitialized && !isDragging) {
-      updateHexValue()
-    }
-  }, [hue, saturation, lightness, isInitialized, isDragging, updateHexValue])
+    if (!canvasRef.current || !showCustomPicker) return
 
-  const handleHueMouseDown = (e: React.MouseEvent) => {
-    setIsDragging(true)
-    setDragType('hue')
-    updateHue(e)
-  }
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
 
-  const handleSlMouseDown = (e: React.MouseEvent) => {
-    setIsDragging(true)
-    setDragType('sl')
-    updateSaturationLightness(e)
-  }
+    // Set canvas size
+    canvas.width = 400
+    canvas.height = 200
 
-  const updateHue = (e: React.MouseEvent | MouseEvent) => {
-    if (!hueRef.current) return
-    const rect = hueRef.current.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const percentage = Math.max(0, Math.min(1, x / rect.width))
-    setHue(percentage * 360)
-  }
+    // Create gradient based on current hue
+    // White to pure color (left to right)
+    const hueColor = `hsl(${hue}, 100%, 50%)`
+    const gradientH = ctx.createLinearGradient(0, 0, canvas.width, 0)
+    gradientH.addColorStop(0, '#ffffff')
+    gradientH.addColorStop(1, hueColor)
+    ctx.fillStyle = gradientH
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-  const updateSaturationLightness = (e: React.MouseEvent | MouseEvent) => {
-    if (!slRef.current) return
-    const rect = slRef.current.getBoundingClientRect()
+    // Transparent to black (top to bottom)
+    const gradientV = ctx.createLinearGradient(0, 0, 0, canvas.height)
+    gradientV.addColorStop(0, 'rgba(0,0,0,0)')
+    gradientV.addColorStop(1, 'rgba(0,0,0,1)')
+    ctx.fillStyle = gradientV
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+  }, [hue, showCustomPicker])
+
+  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const rect = canvas.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
-    const s = Math.max(0, Math.min(100, (x / rect.width) * 100))
-    const l = Math.max(0, Math.min(100, 100 - (y / rect.height) * 100))
-    setSaturation(s)
-    setLightness(l)
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const imageData = ctx.getImageData(x, y, 1, 1)
+    const pixel = imageData.data
+
+    const newRgb = { r: pixel[0], g: pixel[1], b: pixel[2] }
+    setRgb(newRgb)
+
+    const hex = rgbToHex(pixel[0], pixel[1], pixel[2])
+    setCustomColor(hex)
+    onChange(hex)
   }
 
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isDragging) return
-      if (dragType === 'hue') {
-        updateHue(e)
-      } else if (dragType === 'sl') {
-        updateSaturationLightness(e)
-      }
+  const handleHueClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const hueBar = hueRef.current
+    if (!hueBar) return
+
+    const rect = hueBar.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const percentage = Math.max(0, Math.min(1, x / rect.width))
+    const newHue = Math.round(percentage * 360)
+    setHue(newHue)
+  }
+
+  const handleRgbChange = (channel: 'r' | 'g' | 'b', value: string) => {
+    const numValue = Math.max(0, Math.min(255, parseInt(value) || 0))
+    const newRgb = { ...rgb, [channel]: numValue }
+    setRgb(newRgb)
+
+    const hex = rgbToHex(newRgb.r, newRgb.g, newRgb.b)
+    setCustomColor(hex)
+    onChange(hex)
+  }
+
+  const handleHexChange = (hex: string) => {
+    setCustomColor(hex)
+    if (hex.match(/^#[0-9A-Fa-f]{6}$/)) {
+      const rgbVal = hexToRgb(hex)
+      setRgb(rgbVal)
+      onChange(hex)
     }
-
-    const handleMouseUp = () => {
-      setIsDragging(false)
-      setDragType(null)
-      // Update hex value after dragging ends
-      setTimeout(() => {
-        const hex = hslToHex(hue, saturation, lightness)
-        if (hex !== value) {
-          onChange(hex)
-        }
-      }, 0)
-    }
-
-    if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove)
-      document.addEventListener('mouseup', handleMouseUp)
-    }
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [isDragging, dragType])
-
-  const defaultPredefinedColors = [
-    "#000000", // Black
-    "#0000FF", // Blue
-    "#00FF00", // Green
-    "#FFFF00", // Yellow
-    "#FF0000", // Red
-    "#00FFFF", // Light blue
-    "#800080", // Purple
-    "#000080", // Dark blue
-  ]
-
-  const colors = predefinedColors.length > 0 ? predefinedColors : defaultPredefinedColors
-
-  // Close picker when clicking outside
-  const pickerRef = useRef<HTMLDivElement>(null)
-  
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
-        setIsOpen(false)
-      }
-    }
-
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [isOpen])
+  }
 
   return (
-    <div className="relative" ref={pickerRef}>
-      <Button
-        type="button"
-        variant="outline"
-        className="w-8 h-8 p-0 border border-gray-300"
-        style={{ backgroundColor: value }}
-        onClick={() => setIsOpen(!isOpen)}
-      />
-      
-      {isOpen && (
-        <div className="absolute bottom-full left-0 mb-2 z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-4 w-80">
-          {/* Main color selection area */}
-          <div
-            ref={slRef}
-            className="w-full h-48 rounded-lg cursor-crosshair relative mb-4"
-            style={{
-              background: `linear-gradient(to right, white, hsl(${hue}, 100%, 50%)), linear-gradient(to top, black, transparent)`
-            }}
-            onMouseDown={handleSlMouseDown}
-          >
-            {/* Saturation/Lightness selector */}
-            <div
-              className="absolute w-4 h-4 border-2 border-white rounded-full shadow-lg transform -translate-x-2 -translate-y-2"
-              style={{
-                left: `${saturation}%`,
-                top: `${100 - lightness}%`,
-                backgroundColor: hslToHex(hue, saturation, lightness)
-              }}
-            />
-          </div>
-
-          {/* Hue slider */}
-          <div
-            ref={hueRef}
-            className="w-full h-6 rounded-lg cursor-pointer relative mb-4"
-            style={{
-              background: 'linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000)'
-            }}
-            onMouseDown={handleHueMouseDown}
-          >
-            {/* Hue selector */}
-            <div
-              className="absolute w-4 h-6 border-2 border-white rounded shadow-lg transform -translate-x-2"
-              style={{
-                left: `${(hue / 360) * 100}%`,
-                backgroundColor: `hsl(${hue}, 100%, 50%)`
-              }}
-            />
-          </div>
-
-          {/* Current color display and predefined colors */}
-          <div className="flex items-center gap-3">
-            <div
-              className="w-12 h-12 rounded border border-gray-300"
-              style={{ backgroundColor: value }}
-            />
-            
-            <div className="flex-1">
-              <div className="grid grid-cols-4 gap-2">
-                {colors.map((color) => (
-                  <button
-                    key={color}
-                    type="button"
-                    className={`w-8 h-8 rounded-full border-2 transition-all ${
-                      value === color ? 'border-gray-800 scale-110' : 'border-gray-300 hover:border-gray-500'
-                    }`}
-                    style={{ backgroundColor: color }}
-                    onClick={() => {
-                      const { h, s, l } = hexToHsl(color)
-                      setHue(h)
-                      setSaturation(s)
-                      setLightness(l)
-                      onChange(color)
-                      setIsOpen(false) // Close picker after selecting a predefined color
-                    }}
-                  />
-                ))}
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full h-12 rounded-lg border-2 border-gray-300 hover:border-[#1162a8] transition-colors p-3 overflow-hidden flex items-center justify-center"
+          style={{ backgroundColor: value }}
+        >
+          <span className="text-white font-semibold text-sm tracking-wider drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]" style={{
+            textShadow: '0 1px 2px rgba(0,0,0,0.8), 0 0 4px rgba(0,0,0,0.5)'
+          }}>
+            {value.toUpperCase()}
+          </span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[520px] p-0" align="start">
+        {!showCustomPicker ? (
+          <div className="p-4">
+            <h3 className="font-semibold mb-3">Preset Colors</h3>
+            <div className="grid grid-cols-6 gap-3 mb-4">
+              {colors.map((color) => (
                 <button
+                  key={color}
                   type="button"
-                  className="w-8 h-8 rounded-full border-2 border-gray-300 flex items-center justify-center text-gray-500 hover:border-gray-500"
-                    onClick={() => {
-                      const input = document.createElement('input')
-                      input.type = 'color'
-                      input.value = value
-                      input.onchange = (e) => {
-                        const color = (e.target as HTMLInputElement).value
-                        const { h, s, l } = hexToHsl(color)
-                        setHue(h)
-                        setSaturation(s)
-                        setLightness(l)
-                        onChange(color)
-                        setIsOpen(false) // Close picker after selecting custom color
-                      }
-                      input.click()
-                    }}
-                >
-                  +
-                </button>
-              </div>
+                  className="w-12 h-12 rounded-lg border-2 border-gray-300 hover:border-[#1162a8] transition-colors"
+                  style={{ backgroundColor: color }}
+                  onClick={() => {
+                    onChange(color)
+                    setCustomColor(color)
+                    const rgbVal = hexToRgb(color)
+                    setRgb(rgbVal)
+                    setIsOpen(false)
+                  }}
+                />
+              ))}
+            </div>
+
+            <h3 className="font-semibold mb-3">Custom Color</h3>
+            <div className="flex items-center gap-3">
+              <div
+                className="w-16 h-12 rounded-lg border-2 border-gray-300"
+                style={{ backgroundColor: customColor }}
+              />
+              <Input
+                value={customColor.toUpperCase()}
+                onChange={(e) => handleHexChange(e.target.value)}
+                placeholder="#00ACC1"
+                className="flex-1"
+                onClick={() => setShowCustomPicker(true)}
+                readOnly
+              />
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        ) : (
+          <div className="p-4 relative">
+            <button
+              type="button"
+              onClick={() => setShowCustomPicker(false)}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full bg-[#00ACC1] text-white flex items-center justify-center hover:bg-[#0097A7] transition-colors z-10"
+            >
+              ✓
+            </button>
+
+            <h3 className="font-semibold mb-3">Color</h3>
+
+            {/* Color Gradient Canvas */}
+            <div className="mb-4 relative">
+              <canvas
+                ref={canvasRef}
+                onClick={handleCanvasClick}
+                className="w-full h-48 rounded-lg cursor-crosshair border border-gray-300"
+                style={{ maxWidth: '400px', height: '200px' }}
+              />
+            </div>
+
+            {/* Hue Slider */}
+            <div
+              ref={hueRef}
+              onClick={handleHueClick}
+              className="w-full h-6 rounded-full cursor-pointer mb-4 relative"
+              style={{
+                background: 'linear-gradient(to right, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%)'
+              }}
+            >
+              <div
+                className="absolute w-5 h-5 bg-white border-2 border-gray-400 rounded-full top-1/2 transform -translate-y-1/2 -translate-x-1/2 shadow-md"
+                style={{ left: `${(hue / 360) * 100}%` }}
+              />
+            </div>
+
+            {/* RGB Inputs */}
+            <div className="flex gap-3 mb-4">
+              <div className="flex-1">
+                <Input
+                  type="number"
+                  value={rgb.r}
+                  onChange={(e) => handleRgbChange('r', e.target.value)}
+                  min="0"
+                  max="255"
+                  className="w-full text-center"
+                />
+                <p className="text-xs text-center mt-1 text-gray-500">R</p>
+              </div>
+              <div className="flex-1">
+                <Input
+                  type="number"
+                  value={rgb.g}
+                  onChange={(e) => handleRgbChange('g', e.target.value)}
+                  min="0"
+                  max="255"
+                  className="w-full text-center"
+                />
+                <p className="text-xs text-center mt-1 text-gray-500">G</p>
+              </div>
+              <div className="flex-1">
+                <Input
+                  type="number"
+                  value={rgb.b}
+                  onChange={(e) => handleRgbChange('b', e.target.value)}
+                  min="0"
+                  max="255"
+                  className="w-full text-center"
+                />
+                <p className="text-xs text-center mt-1 text-gray-500">B</p>
+              </div>
+            </div>
+
+            {/* Hex Input */}
+            <div className="flex items-center gap-3">
+              <div
+                className="w-16 h-12 rounded-lg border-2 border-gray-300"
+                style={{ backgroundColor: customColor }}
+              />
+              <Input
+                value={customColor.toUpperCase()}
+                onChange={(e) => handleHexChange(e.target.value)}
+                placeholder="#00ACC1"
+                className="flex-1"
+              />
+            </div>
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
   )
 }

@@ -24,6 +24,7 @@ import { useTranslation } from "react-i18next"
 import { DiscardChangesDialog } from "./discard-changes-dialog"
 import { fetchProductsWithCache } from "@/services/product-modal-api"
 import { linkStagesToProducts, buildLinkPayload } from "@/services/stage-product-link-api"
+import { fetchStageProductConnections, type StageWithProducts } from "@/services/stage-product-connections-api"
 import { linkMaterialsToProducts, buildMaterialLinkPayload } from "@/services/material-product-link-api"
 import { linkImpressionsToProducts, buildImpressionLinkPayload } from "@/services/impression-product-link-api"
 import { linkRetentionsToProducts, buildRetentionLinkPayload } from "@/services/retention-product-link-api"
@@ -40,6 +41,7 @@ interface Product {
   materials?: any[]
   impressions?: any[]
   retentions?: any[]
+  grades?: any[] // Add grades for product-level grade pricing
 }
 
 type EntityType = "stage" | "material" | "impression" | "retention"
@@ -161,32 +163,83 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
           throw new Error("Lab ID not found")
         }
 
-        // Fetch products with pagination
-        const response = await fetchProductsWithCache(Number(labId), {
-          per_page: 25,
-          page: 1,
-        })
+        // Use different API based on entityType
+        if (entityType === "stage") {
+          // Fetch stage-product connections
+          const response = await fetchStageProductConnections(Number(labId))
 
-        // Transform API response to match Product interface
-        const transformedProducts: Product[] = response.map((item: any) => {
-          // Calculate image status based on stages
-          let imageStatus: "none" | "some" | "all" = "none"
-          if (item.stages && item.stages.length > 0) {
-            // For now, set to "none" - you can implement logic to check actual image configuration
-            imageStatus = "none"
-          }
+          // Transform API response to match Product interface
+          const productsMap = new Map<number, Product>()
 
-          return {
-            id: item.id,
-            name: item.name,
-            category: item.subcategory_name || item.category_name || "Uncategorized",
-            imageStatus,
-            isSelected: false,
-            stages: item.stages || []
-          }
-        })
+          // Iterate through all stages and their products
+          response.data.forEach((stageData: StageWithProducts) => {
+            stageData.products.forEach((connection) => {
+              const productId = connection.product.id
 
-        setApiProducts(transformedProducts)
+              if (!productsMap.has(productId)) {
+                // Create new product entry
+                productsMap.set(productId, {
+                  id: connection.product.id,
+                  name: connection.product.name,
+                  category: "Product", // You may need to fetch category from another source
+                  imageStatus: "none",
+                  isSelected: false,
+                  stages: [],
+                  grades: connection.grades.map(g => ({
+                    id: g.grade.id,
+                    name: g.grade.name,
+                    code: g.grade.code,
+                    price: g.price,
+                    status: g.status
+                  }))
+                })
+              }
+
+              // Add stage information to the product
+              const product = productsMap.get(productId)!
+              product.stages = product.stages || []
+              product.stages.push({
+                id: stageData.stage.id,
+                name: stageData.stage.name,
+                code: stageData.stage.code,
+                sequence: stageData.stage.sequence,
+                lab_data: connection.lab_data,
+                global_data: connection.global_data,
+                grades: connection.grades,
+                stage_variation: connection.stage_variation
+              })
+            })
+          })
+
+          setApiProducts(Array.from(productsMap.values()))
+        } else {
+          // For other entity types, use the original API
+          const response = await fetchProductsWithCache(Number(labId), {
+            per_page: 25,
+            page: 1,
+          })
+
+          // Transform API response to match Product interface
+          const transformedProducts: Product[] = response.map((item: any) => {
+            // Calculate image status based on stages
+            let imageStatus: "none" | "some" | "all" = "none"
+            if (item.stages && item.stages.length > 0) {
+              // For now, set to "none" - you can implement logic to check actual image configuration
+              imageStatus = "none"
+            }
+
+            return {
+              id: item.id,
+              name: item.name,
+              category: item.subcategory_name || item.category_name || "Uncategorized",
+              imageStatus,
+              isSelected: false,
+              stages: item.stages || []
+            }
+          })
+
+          setApiProducts(transformedProducts)
+        }
       } catch (error: any) {
         console.error("Error fetching products:", error)
         setProductsError(error.message || "Failed to load products")
@@ -196,7 +249,7 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
     }
 
     fetchProducts()
-  }, [isOpen, customProducts])
+  }, [isOpen, customProducts, entityType])
 
   // Reset selections when modal opens/closes or entityType changes
   useEffect(() => {
@@ -215,10 +268,20 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
     }
   }, [products, selectedProducts.length, isOpen])
 
-  // Filter products based on search query
-  const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  // Filter products based on search query and selected stages
+  const filteredProducts = products.filter(product => {
+    const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase())
+
+    // For stage entity type, filter products by selected stages
+    if (entityType === "stage" && selectedEntities.length > 0) {
+      const hasSelectedStage = product.stages?.some(stage =>
+        selectedEntities.includes(stage.id)
+      )
+      return matchesSearch && hasSelectedStage
+    }
+
+    return matchesSearch
+  })
 
   const handleEntitySelect = (entityId: number, checked: boolean) => {
     if (checked) {
@@ -900,7 +963,11 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
                     <div className="text-center">
                       <Package className="h-12 w-12 text-gray-400 mx-auto mb-2" />
                       <p className="text-sm text-gray-600">
-                        {searchQuery ? "No products found matching your search" : "No products available"}
+                        {entityType === "stage" && selectedEntities.length === 0
+                          ? "Select a stage from the left to view its linked products"
+                          : searchQuery
+                          ? "No products found matching your search"
+                          : "No products available"}
                       </p>
                     </div>
                   </div>
@@ -911,16 +978,31 @@ export function LinkProductsModal({ isOpen, onClose, entityType = "stage", conte
                       <div key={product.id} className="border border-gray-200 rounded-lg">
                         <div className="p-3 hover:bg-gray-50">
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 flex-1">
                               <Checkbox
                                 checked={selectedProducts.includes(product.id)}
                                 onCheckedChange={(checked) => handleProductSelect(product.id, !!checked)}
                                 className="border-gray-300 data-[state=checked]:bg-[#1162a8] data-[state=checked]:border-[#1162a8]"
                               />
-                              <span className="font-medium text-gray-900">{product.name}</span>
-                              <div className="flex items-center gap-2">
-                                {getImageStatusIcon(calculateImageStatus(product.id))}
-                                <ImageIcon className="h-4 w-4 text-gray-400" />
+                              <div className="flex-1">
+                                <div className="flex items-center gap-3">
+                                  <span className="font-medium text-gray-900">{product.name}</span>
+                                  <div className="flex items-center gap-2">
+                                    {getImageStatusIcon(calculateImageStatus(product.id))}
+                                    <ImageIcon className="h-4 w-4 text-gray-400" />
+                                  </div>
+                                </div>
+                                {/* Display grade pricing if available */}
+                                {entityType === "stage" && product.grades && product.grades.length > 0 && (
+                                  <div className="flex items-center gap-3 mt-2">
+                                    {product.grades.map((grade) => (
+                                      <div key={grade.id} className="flex items-center gap-1 text-xs">
+                                        <span className="text-gray-600">{grade.name}:</span>
+                                        <span className="font-semibold text-gray-900">${grade.price}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                             </div>
                             <Badge variant="outline" className="text-xs">

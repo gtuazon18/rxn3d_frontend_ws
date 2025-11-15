@@ -44,10 +44,10 @@ export function DuplicateCasePanModal({ isOpen, onClose, sourceData }: Duplicate
         name: `${sourceData.name} (Copy)`,
         prefixLetter: sourceData.code || "",
         quantity: sourceData.quantity?.toString() || "",
-        codeFormat: sourceData.codeFormat || "numeric",
+        codeFormat: sourceData.code_format === "Alphanumeric" ? "alphanumeric" : "numeric",
         color: sourceData.color_code || "#1162A8",
         activeStatus: true,
-        setAsRushGroup: sourceData.isRushGroup || false,
+        setAsRushGroup: sourceData.set_as_rush_group || sourceData.isRushGroup || false,
       })
       setPrefixError(true) // Show error by default since prefix is already used
     }
@@ -69,10 +69,11 @@ export function DuplicateCasePanModal({ isOpen, onClose, sourceData }: Duplicate
         name: formData.name,
         code: formData.prefixLetter,
         quantity: parseInt(formData.quantity),
-        codeFormat: formData.codeFormat,
+        code_format: (formData.codeFormat === "numeric" ? "Numeric" : "Alphanumeric") as "Numeric" | "Alphanumeric",
         color_code: formData.color,
-        status: formData.activeStatus ? "Active" : "Inactive",
-        isRushGroup: formData.setAsRushGroup,
+        type: "Both" as "Upper" | "Lower" | "Both",
+        status: (formData.activeStatus ? "Active" : "Inactive") as "Active" | "Inactive",
+        set_as_rush_group: formData.setAsRushGroup,
       }
 
       await createCasePan(payload)
@@ -86,8 +87,8 @@ export function DuplicateCasePanModal({ isOpen, onClose, sourceData }: Duplicate
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[800px] p-0 gap-0">
-        <DialogHeader className="px-6 py-4 border-b">
+      <DialogContent className="sm:max-w-[800px] max-w-[95vw] p-0 gap-0 max-h-[90vh] flex flex-col">
+        <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
           <div className="flex items-center justify-between">
             <DialogTitle className="text-xl font-medium flex items-center gap-2">
               <div className="bg-[#1162a8] text-white p-2 rounded">
@@ -104,7 +105,7 @@ export function DuplicateCasePanModal({ isOpen, onClose, sourceData }: Duplicate
           </div>
         </DialogHeader>
 
-        <div className="px-6 py-5">
+        <div className="px-6 py-5 overflow-y-auto flex-1 min-h-0">
           <p className="text-sm text-gray-600 mb-6">
             {t("caseTracking.duplicateDescription", "Create a new case tracking group with prefix, capacity, and linked categories.")}
           </p>
@@ -223,7 +224,7 @@ export function DuplicateCasePanModal({ isOpen, onClose, sourceData }: Duplicate
           </div>
         </div>
 
-        <DialogFooter className="px-6 py-4 border-t">
+        <DialogFooter className="px-6 py-4 border-t flex-shrink-0">
           <Button variant="outline" onClick={onClose}>
             {t("caseTracking.cancel", "Cancel")}
           </Button>

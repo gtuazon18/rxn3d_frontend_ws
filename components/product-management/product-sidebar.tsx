@@ -8,6 +8,7 @@ import { useTranslation } from "react-i18next"
 import { useMemo, useState, useEffect } from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { ChevronDown, ChevronRight } from "lucide-react"
+import { usePersistedState } from "@/hooks/use-persisted-state"
 
 type SideTabItem = {
   id: string
@@ -40,6 +41,57 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
   // Set route prefix based on user role
   const routePrefix = isLabAdmin ? "/lab-product-library" : "/global-product-library"
 
+  // Get custom label for case tracking from localStorage
+  const defaultCaseTrackingLabel = t("productLibrary.sideBar.CaseTracking", "Case Tracking")
+  
+  // Listen for localStorage changes to update the label in real-time
+  const [caseTrackingLabel, setCaseTrackingLabel] = useState<string>(defaultCaseTrackingLabel)
+  
+  useEffect(() => {
+    const getLabel = () => {
+      if (typeof window !== "undefined") {
+        const stored = localStorage.getItem("casePanTrackingLabel")
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored)
+            // Only use stored value if it's not empty
+            if (parsed && parsed.trim()) {
+              return parsed
+            }
+          } catch {
+            // If parsing fails, try using the raw value
+            if (stored && stored.trim()) {
+              return stored
+            }
+          }
+        }
+      }
+      return defaultCaseTrackingLabel
+    }
+    
+    setCaseTrackingLabel(getLabel())
+    
+    // Listen for storage events (when localStorage changes in another tab/window)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "casePanTrackingLabel") {
+        setCaseTrackingLabel(getLabel())
+      }
+    }
+    
+    // Listen for custom storage events (when localStorage changes in same tab)
+    const handleCustomStorageChange = () => {
+      setCaseTrackingLabel(getLabel())
+    }
+    
+    window.addEventListener("storage", handleStorageChange)
+    window.addEventListener("casePanTrackingLabelChanged", handleCustomStorageChange)
+    
+    return () => {
+      window.removeEventListener("storage", handleStorageChange)
+      window.removeEventListener("casePanTrackingLabelChanged", handleCustomStorageChange)
+    }
+  }, [defaultCaseTrackingLabel])
+
   const sidebarGroups: SidebarGroup[] = useMemo(() => [
     {
       id: "products",
@@ -63,8 +115,8 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
 
   // Flat items (single tabs, not in accordion)
   const flatItems: SideTabItem[] = useMemo(() => [
-    { id: "case-pans", label: t("productLibrary.sideBar.CasePans", "Case Pans"), href: `${routePrefix}/case-pans` },
-    // { id: "case-tracking", label: t("productLibrary.sideBar.CaseTracking", "Case Tracking"), href: `${routePrefix}/case-tracking` },
+    // { id: "case-pans", label: t("productLibrary.sideBar.CasePans", "Case Pans"), href: `${routePrefix}/case-pans` },
+    { id: "case-tracking", label: caseTrackingLabel, href: `${routePrefix}/case-tracking` },
     { id: "stages", label: t("productLibrary.sideBar.Stages", "Stages"), href: `${routePrefix}/stages` },
     { id: "grades", label: t("productLibrary.sideBar.Grades", "Grades"), href: `${routePrefix}/grades` },
     { id: "tooth-mapping", label: t("productLibrary.sideBar.ToothMapping", "Tooth Mapping"), href: `${routePrefix}/tooth-mapping` },
@@ -73,7 +125,7 @@ export function ProductSidebar({ activeTab = "products", onTabChange }: ProductS
     { id: "gum-shade", label: t("productLibrary.sideBar.GumShades", "Gum Shade"), href: `${routePrefix}/gum-shade` },
     { id: "material", label: t("productLibrary.sideBar.Materials", "Material"), href: `${routePrefix}/material` },
     { id: "retention", label: t("productLibrary.sideBar.Retention", "Retention"), href: `${routePrefix}/retention` },
-  ], [t, routePrefix])
+  ], [t, routePrefix, caseTrackingLabel])
 
   // Flatten all items to find active tab
   const allItems = useMemo(() => 

@@ -55,10 +55,10 @@ export function AddCasePanTrackingModal({ isOpen, onClose, editData, mode = "add
         name: editData.name || "",
         prefixLetter: editData.code || "",
         quantity: editData.quantity?.toString() || "",
-        codeFormat: editData.codeFormat || "numeric",
+        codeFormat: editData.code_format === "Alphanumeric" ? "alphanumeric" : "numeric",
         color: editData.color_code || "#1E88E5",
         activeStatus: editData.status === "Active",
-        setAsRushGroup: editData.isRushGroup || false,
+        setAsRushGroup: editData.set_as_rush_group || editData.isRushGroup || false,
       })
     } else {
       resetForm()
@@ -89,10 +89,11 @@ export function AddCasePanTrackingModal({ isOpen, onClose, editData, mode = "add
         name: formData.name,
         code: formData.prefixLetter,
         quantity: parseInt(formData.quantity),
-        codeFormat: formData.codeFormat,
+        code_format: (formData.codeFormat === "numeric" ? "Numeric" : "Alphanumeric") as "Numeric" | "Alphanumeric",
         color_code: formData.color,
-        status: formData.activeStatus ? "Active" : "Inactive",
-        isRushGroup: formData.setAsRushGroup,
+        type: "Both" as "Upper" | "Lower" | "Both",
+        status: (formData.activeStatus ? "Active" : "Inactive") as "Active" | "Inactive",
+        set_as_rush_group: formData.setAsRushGroup,
       }
 
       if (mode === "edit" && editData?.id) {
@@ -112,8 +113,8 @@ export function AddCasePanTrackingModal({ isOpen, onClose, editData, mode = "add
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[800px] p-0 gap-0">
-        <DialogHeader className="px-6 py-4 border-b">
+      <DialogContent className="sm:max-w-[800px] max-w-[95vw] p-0 gap-0 max-h-[90vh] flex flex-col">
+        <DialogHeader className="px-6 py-4 border-b flex-shrink-0">
           <div className="flex items-center justify-between">
             <DialogTitle className="text-xl font-medium flex items-center gap-2">
               <div className="bg-[#1162a8] text-white p-2 rounded">
@@ -129,7 +130,7 @@ export function AddCasePanTrackingModal({ isOpen, onClose, editData, mode = "add
           </div>
         </DialogHeader>
 
-        <div className="px-6 py-5">
+        <div className="px-6 py-5 overflow-y-auto flex-1 min-h-0">
           <p className="text-sm text-gray-600 mb-6">
             {t("caseTracking.addCasePanDescription", "Create a new case tracking group with prefix, capacity, and linked categories.")}
           </p>
@@ -197,53 +198,11 @@ export function AddCasePanTrackingModal({ isOpen, onClose, editData, mode = "add
               <label className="block text-sm font-medium mb-2">
                 {t("caseTracking.color", "Color")}
               </label>
-              <div className="flex items-center gap-4">
-                <ColorPicker
-                  value={formData.color}
-                  onChange={(color) => handleInputChange("color", color)}
-                  predefinedColors={PRESET_COLORS}
-                />
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-12 h-12 rounded border-2 border-gray-300"
-                    style={{ backgroundColor: formData.color }}
-                  />
-                  <span className="text-sm font-mono">{formData.color}</span>
-                </div>
-              </div>
-
-              {/* Preset Colors */}
-              <div className="mt-4">
-                <p className="text-sm font-medium mb-2">{t("caseTracking.presetColors", "Preset Colors")}</p>
-                <div className="flex gap-2 flex-wrap">
-                  {PRESET_COLORS.map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      className="w-10 h-10 rounded border-2 border-gray-300 hover:border-[#1162a8] transition-colors"
-                      style={{ backgroundColor: color }}
-                      onClick={() => handleInputChange("color", color)}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              {/* Custom Color */}
-              <div className="mt-4">
-                <p className="text-sm font-medium mb-2">{t("caseTracking.customColor", "Custom Color")}</p>
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-24 h-10 rounded border-2 border-gray-300"
-                    style={{ backgroundColor: formData.color }}
-                  />
-                  <Input
-                    value={formData.color}
-                    onChange={(e) => handleInputChange("color", e.target.value)}
-                    placeholder="#1E88E5"
-                    className="h-10"
-                  />
-                </div>
-              </div>
+              <ColorPicker
+                value={formData.color}
+                onChange={(color) => handleInputChange("color", color)}
+                predefinedColors={PRESET_COLORS}
+              />
             </div>
 
             {/* Set as Rush Group */}
@@ -273,7 +232,7 @@ export function AddCasePanTrackingModal({ isOpen, onClose, editData, mode = "add
           </div>
         </div>
 
-        <DialogFooter className="px-6 py-4 border-t">
+        <DialogFooter className="px-6 py-4 border-t flex-shrink-0">
           <Button variant="outline" onClick={onClose}>
             {t("caseTracking.cancel", "Cancel")}
           </Button>

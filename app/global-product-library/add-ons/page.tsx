@@ -271,9 +271,9 @@ export default function AddOnsPage() {
         </div>
 
         <div className="flex gap-3">
-          <Button className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors">
+          {/* <Button className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors">
             Import add-ons
-          </Button>
+          </Button> */}
           <Button
             className="bg-[#1162a8] hover:bg-[#0f5497] text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition-colors"
             onClick={() => setIsCreateModalOpen(true)}
@@ -473,7 +473,7 @@ export default function AddOnsPage() {
         </div>
 
         {/* Right side - Add-on Groups */}
-        <div className="w-1/3 min-w-[300px] bg-gray-50/30">
+        {/* <div className="w-1/3 min-w-[300px] bg-gray-50/30">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -550,7 +550,7 @@ export default function AddOnsPage() {
               </TableBody>
             </Table>
           </div>
-        </div>
+        </div> */}
       </div>
 
       {/* Create Add-on Modal */}
